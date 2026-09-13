@@ -1,297 +1,187 @@
 /* ==========================================================================
-   data.js —— 番剧数据加载
-   1) 正常（本地服务器）时读取 data/anime.json
-   2) 直接双击 HTML（file://）时 fetch 会被浏览器拦截，改用下面同内容的内置数组
-   数据为示例用途，集数列表由 buildEpisodes() 生成占位内容。
+   data.js —— 番剧数据加载与通用取值
+
+   数据由 work/fetch-anime-data.mjs 抓取生成（Jikan / AniList），文件有三份：
+     data/anime.json    权威数据（本地服务器 / GitHub Pages 下 fetch 读取）
+     data/anime.js      同内容的 JS，供 file:// 双击打开时兜底
+     data/trending.json / trending.js   本季·热门列表（可能为空）
+
+   本站只保存图片 URL，不下载、不托管任何图片文件。
    ========================================================================== */
 
 (function (global) {
   'use strict';
 
-  var ANIME_FALLBACK = [
-    {
-      id: 'aot',
-      title: '进击的巨人',
-      titleJa: '進撃の巨人',
-      titleEn: 'Attack on Titan',
-      year: 2013,
-      season: '春季',
-      studio: 'WIT STUDIO / MAPPA',
-      status: '已完结',
-      rating: 9.1,
-      duration: '24 分钟',
-      episodes: 12,
-      categories: ['热血', '奇幻'],
-      tags: ['巨人类', '世界观宏大', '剧情向', '动作'],
-      emoji: '🛡️',
-      palette: ['#7a2f4a', '#1c2b52'],
-      summary: '人类在高墙之内生活了百年，墙外的巨人让墙内世界时刻笼罩在恐惧中。当高墙被突破，少年艾伦与伙伴们被卷入一场关乎人类存亡的战斗。示例数据仅用于站点演示，剧情简介为概括性说明。'
-    },
-    {
-      id: 'demon-slayer',
-      title: '鬼灭之刃',
-      titleJa: '鬼滅の刃',
-      titleEn: 'Demon Slayer',
-      year: 2019,
-      season: '春季',
-      studio: 'ufotable',
-      status: '连载中',
-      rating: 8.9,
-      duration: '24 分钟',
-      episodes: 26,
-      categories: ['热血', '奇幻'],
-      tags: ['和风', '剑戟', '兄妹羁绊', '作画'],
-      emoji: '⚔️',
-      palette: ['#1f6b6a', '#3c1e4d'],
-      summary: '为了让变成鬼的妹妹恢复人身，少年踏上斩鬼之路，在旅途中结识同伴，也逐渐逼近悲剧的源头。示例数据仅用于站点演示。'
-    },
-    {
-      id: 'jujutsu-kaisen',
-      title: '咒术回战',
-      titleJa: '呪術廻戦',
-      titleEn: 'Jujutsu Kaisen',
-      year: 2020,
-      season: '秋季',
-      studio: 'MAPPA',
-      status: '连载中',
-      rating: 8.8,
-      duration: '24 分钟',
-      episodes: 24,
-      categories: ['热血', '奇幻'],
-      tags: ['现代异能', '咒术', '校园', '战斗'],
-      emoji: '🌀',
-      palette: ['#2b2a5e', '#5a2350'],
-      summary: '少年吞下禁忌之物后被卷入咒术师的世界，为了保护同伴、也为了掌控自身背负的力量而战。示例数据仅用于站点演示。'
-    },
-    {
-      id: 'haikyuu',
-      title: '排球少年!!',
-      titleJa: 'ハイキュー!!',
-      titleEn: 'Haikyu!!',
-      year: 2014,
-      season: '春季',
-      studio: 'Production I.G',
-      status: '已完结',
-      rating: 9.0,
-      duration: '24 分钟',
-      episodes: 25,
-      categories: ['热血', '日常'],
-      tags: ['运动', '排球', '青春', '团队'],
-      emoji: '🏐',
-      palette: ['#134a72', '#2f7a5a'],
-      summary: '身材矮小却弹跳惊人的少年加入高中排球部，与曾经的对手成为队友，一起向着更高的舞台冲击。示例数据仅用于站点演示。'
-    },
-    {
-      id: 'bocchi',
-      title: '孤独摇滚!',
-      titleJa: 'ぼっち・ざ・ろっく！',
-      titleEn: 'Bocchi the Rock!',
-      year: 2022,
-      season: '秋季',
-      studio: 'CloverWorks',
-      status: '已完结',
-      rating: 9.0,
-      duration: '23 分钟',
-      episodes: 12,
-      categories: ['日常', '治愈'],
-      tags: ['音乐', '校园', '社恐', '乐队'],
-      emoji: '🎸',
-      palette: ['#5d2f78', '#c2417a'],
-      summary: '极度怕生的少女抱着吉他独自练习多年，意外被拉进乐队后，开始笨拙又真诚地与人建立联系。示例数据仅用于站点演示。'
-    },
-    {
-      id: 'yuru-camp',
-      title: '摇曳露营△',
-      titleJa: 'ゆるキャン△',
-      titleEn: 'Laid-Back Camp',
-      year: 2018,
-      season: '冬季',
-      studio: 'C-Station',
-      status: '连载中',
-      rating: 8.7,
-      duration: '23 分钟',
-      episodes: 12,
-      categories: ['日常', '治愈'],
-      tags: ['露营', '风景', '慢生活', '治愈系'],
-      emoji: '⛺',
-      palette: ['#1f5c58', '#2b3f6b'],
-      summary: '喜欢独自露营的少女与朋友们在冬日湖畔、山间营地度过安静的时光，简单日常里都是温和的余韵。示例数据仅用于站点演示。'
-    },
-    {
-      id: 'natsume',
-      title: '夏目友人帐',
-      titleJa: '夏目友人帳',
-      titleEn: "Natsume's Book of Friends",
-      year: 2008,
-      season: '夏季',
-      studio: "Brain's Base",
-      status: '连载中',
-      rating: 8.9,
-      duration: '24 分钟',
-      episodes: 13,
-      categories: ['治愈', '奇幻'],
-      tags: ['妖怪', '温情', '单元剧', '日式奇幻'],
-      emoji: '🍃',
-      palette: ['#2e5c46', '#4a3a6b'],
-      summary: '能看见妖怪的少年继承了外婆留下的契约册，与自称保镖的猫咪老师一起，把名字一页页还给妖怪。示例数据仅用于站点演示。'
-    },
-    {
-      id: 'violet',
-      title: '紫罗兰永恒花园',
-      titleJa: 'ヴァイオレット・エヴァーガーデン',
-      titleEn: 'Violet Evergarden',
-      year: 2018,
-      season: '冬季',
-      studio: '京都动画',
-      status: '已完结',
-      rating: 8.9,
-      duration: '24 分钟',
-      episodes: 13,
-      categories: ['治愈', '奇幻'],
-      tags: ['书信', '成长', '情感', '美术'],
-      emoji: '💌',
-      palette: ['#3a2f70', '#7a3f6b'],
-      summary: '曾作为兵器长大的少女成为代笔人，在替他人书写心意的过程中，一点点学会理解自己的情感。示例数据仅用于站点演示。'
-    },
-    {
-      id: 'hyouka',
-      title: '冰菓',
-      titleJa: '氷菓',
-      titleEn: 'Hyouka',
-      year: 2012,
-      season: '春季',
-      studio: '京都动画',
-      status: '已完结',
-      rating: 8.8,
-      duration: '25 分钟',
-      episodes: 22,
-      categories: ['日常'],
-      tags: ['推理', '校园', '青春', '节能主义'],
-      emoji: '🔍',
-      palette: ['#2c3f6e', '#6b3f5c'],
-      summary: '奉行节能主义的高中生被好奇心旺盛的同伴拉入古典部的日常谜题，平静校园里藏着温柔又克制的青春。示例数据仅用于站点演示。'
-    },
-    {
-      id: 'frieren',
-      title: '葬送的芙莉莲',
-      titleJa: '葬送のフリーレン',
-      titleEn: "Frieren: Beyond Journey's End",
-      year: 2023,
-      season: '秋季',
-      studio: 'MADHOUSE',
-      status: '连载中',
-      rating: 9.2,
-      duration: '24 分钟',
-      episodes: 28,
-      categories: ['奇幻', '治愈'],
-      tags: ['冒险后日谈', '精灵', '魔法', '时间与告别'],
-      emoji: '🌿',
-      palette: ['#245a52', '#3a3068'],
-      summary: '勇者一行打倒魔王之后，寿命漫长的精灵魔法使踏上新的旅途，在缓慢流逝的时间里重新认识曾经并肩的伙伴。示例数据仅用于站点演示。'
-    },
-    {
-      id: 'spy-family',
-      title: '间谍过家家',
-      titleJa: 'SPY×FAMILY',
-      titleEn: 'SPY×FAMILY',
-      year: 2022,
-      season: '春季',
-      studio: 'WIT STUDIO / CloverWorks',
-      status: '连载中',
-      rating: 8.7,
-      duration: '24 分钟',
-      episodes: 25,
-      categories: ['日常'],
-      tags: ['喜剧', '家庭', '间谍', '超能力'],
-      emoji: '🕵️',
-      palette: ['#7a3050', '#24406b'],
-      summary: '为完成任务而组建的临时家庭，三个人各自藏着秘密，却在鸡飞狗跳的同居生活里慢慢变成了真正的家人。示例数据仅用于站点演示。'
-    },
-    {
-      id: 'dungeon-meshi',
-      title: '迷宫饭',
-      titleJa: 'ダンジョン飯',
-      titleEn: 'Delicious in Dungeon',
-      year: 2024,
-      season: '冬季',
-      studio: 'TRIGGER',
-      status: '连载中',
-      rating: 8.8,
-      duration: '25 分钟',
-      episodes: 24,
-      categories: ['奇幻', '日常'],
-      tags: ['迷宫', '美食', '幻想', '冒险'],
-      emoji: '🍲',
-      palette: ['#6b4a24', '#2f3f5c'],
-      summary: '为了救回同伴，冒险者一行决定在迷宫里就地取材，把魔物做成料理，一边下潜一边研究奇幻生态的餐桌。示例数据仅用于站点演示。'
-    }
-  ];
+  var CATEGORIES = ['全部', '热血', '日常', '奇幻', '治愈', '科幻', '悬疑'];
 
-  var CATEGORIES = ['全部', '热血', '日常', '奇幻', '治愈'];
+  var SEASON_ZH = { winter: '冬季', spring: '春季', summer: '夏季', fall: '秋季' };
+  var STATUS_ZH = {
+    'Finished Airing': '已完结',
+    'Currently Airing': '连载中',
+    'Not yet aired': '未开播',
+    'Cancelled': '停播',
+    'On Hiatus': '休载'
+  };
+  var TRACK_STATUS = {
+    watching: '在看',
+    completed: '看完',
+    planned: '计划看'
+  };
 
-  var cache = null;
-  var sourceLabel = '内置兜底数据';
+  var cache = { anime: null, trending: null, animeSource: '', trendingSource: '' };
+  var isFileProtocol = global.location && global.location.protocol === 'file:';
 
-  function fetchJson() {
-    // file:// 下 fetch 本地文件会被 CORS 拦截，直接使用内置数据
-    if (global.location && global.location.protocol === 'file:') {
-      return Promise.resolve(null);
-    }
-    if (typeof global.fetch !== 'function') {
-      return Promise.resolve(null);
-    }
-    return global.fetch('data/anime.json', { cache: 'no-cache' })
-      .then(function (res) {
-        if (!res.ok) { return null; }
-        return res.json();
-      })
-      .catch(function () { return null; });
+  /* ------------------------------------------------------------- 加载工具 */
+
+  function loadScriptOnce(id, src) {
+    return new Promise(function (resolve) {
+      var existing = document.getElementById(id);
+      if (existing) {
+        if (existing.getAttribute('data-loaded') === '1') { resolve(true); return; }
+        existing.addEventListener('load', function () { resolve(true); });
+        existing.addEventListener('error', function () { resolve(false); });
+        return;
+      }
+      var s = document.createElement('script');
+      s.id = id;
+      s.src = src;
+      s.addEventListener('load', function () {
+        s.setAttribute('data-loaded', '1');
+        resolve(true);
+      });
+      s.addEventListener('error', function () { resolve(false); });
+      document.head.appendChild(s);
+    });
   }
 
-  function normalize(list) {
-    if (!Array.isArray(list) || !list.length) { return ANIME_FALLBACK; }
-    return list.filter(function (item) {
-      return item && item.id && item.title;
-    });
+  function fetchJson(url) {
+    if (isFileProtocol || typeof global.fetch !== 'function') { return Promise.resolve(null); }
+    return global.fetch(url, { cache: 'no-cache' }).then(function (res) {
+      if (!res.ok) { return null; }
+      return res.json().catch(function () { return null; });
+    }).catch(function () { return null; });
   }
 
   /**
-   * 加载番剧列表。
-   * @returns {Promise<Array>} 番剧数组
+   * 读取一份数据：先试 JSON，失败再加载同名 .js 兜底。
+   * @returns {Promise<{value:*, source:string}>}
    */
-  function loadAnime() {
-    if (cache) { return Promise.resolve(cache); }
-    return fetchJson().then(function (json) {
-      var list = normalize(json);
-      sourceLabel = list === ANIME_FALLBACK ? '内置兜底数据' : 'data/anime.json';
-      cache = list.slice();
-      return cache;
+  function loadPair(jsonPath, jsPath, globalName) {
+    return fetchJson(jsonPath).then(function (json) {
+      if (json) { return { value: json, source: jsonPath }; }
+      return loadScriptOnce('fallback-' + jsPath, jsPath).then(function (ok) {
+        var value = ok ? global[globalName] : null;
+        return { value: value || null, source: value ? jsPath + '（本地兜底）' : '不可用' };
+      });
     });
   }
 
-  function getSourceLabel() { return sourceLabel; }
+  /* ------------------------------------------------------------ 对外接口 */
 
-  function findAnime(list, id) {
-    if (!id) { return null; }
+  function load() {
+    if (cache.anime) { return Promise.resolve(cache.anime); }
+    return loadPair('data/anime.json', 'data/anime.js', '__ANIME_DATA__').then(function (r) {
+      cache.anime = Array.isArray(r.value) ? r.value : [];
+      cache.animeSource = r.source;
+      return cache.anime;
+    });
+  }
+
+  function loadTrending() {
+    if (cache.trending) { return Promise.resolve(cache.trending); }
+    return loadPair('data/trending.json', 'data/trending.js', '__TRENDING_DATA__').then(function (r) {
+      var value = r.value && Array.isArray(r.value.items)
+        ? r.value
+        : { items: [], source: null, season: null };
+      cache.trending = value;
+      cache.trendingSource = r.source;
+      return value;
+    });
+  }
+
+  function find(list, id) {
+    if (!id || !Array.isArray(list)) { return null; }
     for (var i = 0; i < list.length; i++) {
       if (list[i].id === id) { return list[i]; }
     }
     return null;
   }
 
-  /**
-   * 生成占位集数列表（不含任何真实剧集信息）。
-   * @param {Object} anime
-   * @returns {Array<{n:number,title:string,desc:string}>}
-   */
-  function buildEpisodes(anime) {
-    var total = Math.max(1, Math.min(60, Number(anime.episodes) || 12));
+  /* -------------------------------------------------------------- 取值器 */
+
+  function displayTitle(a) {
+    return a.titleZh || a.title || a.titleEn || a.titleJa || '未知作品';
+  }
+
+  function altTitles(a) {
+    return [a.title, a.titleEn, a.titleJa].filter(function (t) {
+      return t && t !== displayTitle(a);
+    });
+  }
+
+  function scoreText(a) {
+    return typeof a.score === 'number' ? a.score.toFixed(1) : '—';
+  }
+
+  function yearText(a) {
+    var season = a.season && SEASON_ZH[a.season] ? ' ' + SEASON_ZH[a.season] : '';
+    return a.year ? a.year + ' 年' + season : '年份未知';
+  }
+
+  function statusText(a) {
+    return STATUS_ZH[a.status] || a.status || '状态未知';
+  }
+
+  function trackStatusText(key) {
+    return TRACK_STATUS[key] || key || '';
+  }
+
+  function episodesText(a) {
+    return a.episodes ? '全 ' + a.episodes + ' 集' : '集数未知';
+  }
+
+  /** 集数为空的连载作品（例如 ONE PIECE）按 24 集占位，便于记录进度。 */
+  function episodeTotal(a) {
+    return a.episodes || 24;
+  }
+
+  function episodesEstimated(a) {
+    return !a.episodes;
+  }
+
+  function allTags(a, limit) {
+    var tags = [].concat(a.categories || [], a.genres || [], a.themes || []);
+    var seen = {};
+    tags = tags.filter(function (t) {
+      if (!t || seen[t]) { return false; }
+      seen[t] = true;
+      return true;
+    });
+    return limit ? tags.slice(0, limit) : tags;
+  }
+
+  function externalLinks(a) {
+    var links = [];
+    if (a.malUrl) { links.push({ label: 'MyAnimeList', url: a.malUrl, kind: 'mal' }); }
+    if (a.anilistUrl) { links.push({ label: 'AniList', url: a.anilistUrl, kind: 'anilist' }); }
+    return links;
+  }
+
+  function sourceLabel(a) {
+    if (a.source === 'jikan') { return '来自 Jikan（MyAnimeList 公开 API）'; }
+    if (a.source === 'anilist') { return '来自 AniList GraphQL API'; }
+    return '数据源未匹配到条目（占位）';
+  }
+
+  /** 生成占位集数列表（不含任何真实剧集信息）。 */
+  function buildEpisodes(a) {
+    var total = Math.max(1, Math.min(300, episodeTotal(a)));
     var list = [];
     for (var i = 1; i <= total; i++) {
       list.push({
         n: i,
         title: '第 ' + i + ' 集',
-        desc: '占位简介：这里将显示第 ' + i + ' 集的剧情概要（示例数据，非真实剧集信息）。'
+        desc: '占位条目：用于记录观看进度，不代表真实剧集标题。'
       });
     }
     return list;
@@ -299,9 +189,24 @@
 
   global.AnimeData = {
     CATEGORIES: CATEGORIES,
-    load: loadAnime,
-    sourceLabel: getSourceLabel,
-    find: findAnime,
+    TRACK_STATUS: TRACK_STATUS,
+    load: load,
+    loadTrending: loadTrending,
+    animeSource: function () { return cache.animeSource; },
+    trendingSource: function () { return cache.trendingSource; },
+    find: find,
+    displayTitle: displayTitle,
+    altTitles: altTitles,
+    scoreText: scoreText,
+    yearText: yearText,
+    statusText: statusText,
+    trackStatusText: trackStatusText,
+    episodesText: episodesText,
+    episodeTotal: episodeTotal,
+    episodesEstimated: episodesEstimated,
+    allTags: allTags,
+    externalLinks: externalLinks,
+    sourceLabel: sourceLabel,
     buildEpisodes: buildEpisodes
   };
 })(window);

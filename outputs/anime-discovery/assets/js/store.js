@@ -12,7 +12,7 @@
   var memory = null; // localStorage 不可用时的内存兜底（例如隐私模式）
 
   function emptyState() {
-    return { favorites: {}, progress: {}, recent: [] };
+    return { favorites: {}, progress: {}, status: {}, recent: [] };
   }
 
   function available() {
@@ -37,6 +37,7 @@
       return {
         favorites: parsed.favorites && typeof parsed.favorites === 'object' ? parsed.favorites : {},
         progress: parsed.progress && typeof parsed.progress === 'object' ? parsed.progress : {},
+        status: parsed.status && typeof parsed.status === 'object' ? parsed.status : {},
         recent: Array.isArray(parsed.recent) ? parsed.recent : []
       };
     } catch (e) {
@@ -138,6 +139,40 @@
     write(s);
   }
 
+  /* --------- 追番状态：在看 / 看完 / 计划看 --------- */
+
+  /**
+   * 取某个番剧的追番状态。没有手动设置时按进度推导：
+   * 全部看完 → completed；看过若干集 → watching；否则 → planned。
+   */
+  function getStatus(id, totalEpisodes) {
+    var s = read();
+    var explicit = s.status[id];
+    if (explicit) { return explicit; }
+    var done = watchedCount(id);
+    var total = Number(totalEpisodes) || 0;
+    if (total > 0 && done >= total) { return 'completed'; }
+    if (done > 0) { return 'watching'; }
+    return 'planned';
+  }
+
+  function setStatus(id, status) {
+    if (!id) { return null; }
+    var s = read();
+    if (!status) {
+      delete s.status[id];
+    } else {
+      s.status[id] = status;
+      if (!s.favorites[id]) { s.favorites[id] = { addedAt: Date.now() }; }
+    }
+    write(s);
+    return status || null;
+  }
+
+  function explicitStatus(id) {
+    return read().status[id] || null;
+  }
+
   function touchRecent(id) {
     if (!id) { return; }
     var s = read();
@@ -203,6 +238,9 @@
     toggleEpisode: toggleEpisode,
     setProgressRatio: setProgressRatio,
     clearProgress: clearProgress,
+    getStatus: getStatus,
+    setStatus: setStatus,
+    explicitStatus: explicitStatus,
     touchRecent: touchRecent,
     recentList: recentList,
     clearAll: clearAll,

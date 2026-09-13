@@ -36,8 +36,13 @@
 
   <div class="stat-row">
     <div class="stat"><strong id="statFav">0</strong><span>收藏番剧</span></div>
-    <div class="stat"><strong id="statTracking">0</strong><span>有进度记录</span></div>
-    <div class="stat"><strong id="statEpisodes">0</strong><span>累计标记集数</span></div>
+    <div class="stat"><strong id="statWatching">0</strong><span>在看</span></div>
+    <div class="stat"><strong id="statCompleted">0</strong><span>看完</span></div>
+    <div class="stat"><strong id="statPlanned">0</strong><span>计划看</span></div>
+  </div>
+
+  <div class="toolbar" style="margin-top:8px">
+    <div class="chips" id="statusChips" role="group" aria-label="按追番状态筛选"></div>
   </div>
 
   <section id="continueSection" hidden>
@@ -53,7 +58,7 @@
   <div class="section-head">
     <div>
       <h2>收藏列表</h2>
-      <p class="faint">点击卡片进入详情页勾选集数，进度会显示在这里</p>
+      <p class="faint">点击卡片进入详情页勾选集数；状态可在详情页或条目上直接切换</p>
     </div>
     <div class="chips">
       <button class="btn btn-sm" id="exportBtn" type="button">导出记录</button>

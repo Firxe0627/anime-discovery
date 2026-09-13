@@ -1,4 +1,5 @@
-[
+/* 由 work/fetch-anime-data.mjs 生成，供 file:// 打开时兜底使用，请勿手改。 */
+window.__ANIME_DATA__ = [
   {
     "id": "aot",
     "titleZh": "进击的巨人",
@@ -1702,4 +1703,4 @@
     "anilistUrl": "https://anilist.co/anime/13601",
     "source": "anilist"
   }
-]
+];

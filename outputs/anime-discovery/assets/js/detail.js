@@ -1,14 +1,19 @@
 /* ==========================================================================
-   detail.js —— 番剧详情页：资料 / 标签 / 集数清单（占位数据）/ 追番与进度
+   detail.js —— 番剧详情：真封面、完整简介、标签、分数、集数进度、
+                 MAL / AniList 外链、追番状态
    ========================================================================== */
 
 (function (global) {
   'use strict';
 
+  var D = global.AnimeData;
   var el = global.UI.el;
   var anime = null;
   var episodes = [];
+  var allList = [];
   var root = null;
+  var favButton = null;
+  var progressHost = null;
 
   function notFound() {
     root.innerHTML = '';
@@ -21,8 +26,11 @@
     root.appendChild(empty);
   }
 
+  /* ------------------------------------------------------------ 进度条 */
+
   function progressBox() {
-    var ratio = global.AnimeStore.setProgressRatio(anime.id, anime.episodes);
+    var total = D.episodeTotal(anime);
+    var ratio = global.AnimeStore.setProgressRatio(anime.id, total);
     var wrap = el('div');
     var line = el('div', 'progress-line');
     var bar = el('div', 'progress');
@@ -35,8 +43,146 @@
     line.appendChild(bar);
     line.appendChild(el('span', 'faint', ratio.done + ' / ' + ratio.total + ' 集'));
     wrap.appendChild(line);
+    if (D.episodesEstimated(anime)) {
+      wrap.appendChild(el('p', 'faint', '数据源未给出总集数，这里按 24 集占位以便记录进度。'));
+    }
     return wrap;
   }
+
+  function renderProgress() {
+    if (!progressHost) { return; }
+    progressHost.innerHTML = '';
+    progressHost.appendChild(progressBox());
+  }
+
+  /* ------------------------------------------------------------ 简介区 */
+
+  function synopsisBlock() {
+    var wrap = el('div', 'synopsis-block');
+
+    if (anime.summaryZh) {
+      var zh = el('div', 'summary-zh');
+      zh.appendChild(el('h3', null, '中文速览'));
+      zh.appendChild(el('p', null, anime.summaryZh));
+      zh.appendChild(el('p', 'faint', '本站编辑整理的概述，非官方简介。'));
+      wrap.appendChild(zh);
+    }
+
+    wrap.appendChild(el('h3', null, '完整简介'));
+    if (anime.synopsis) {
+      var p = el('p', 'synopsis synopsis-clamped', anime.synopsis);
+      wrap.appendChild(p);
+      if (anime.synopsis.length > 320) {
+        var toggle = el('button', 'btn btn-sm btn-ghost', '展开全文');
+        toggle.type = 'button';
+        toggle.addEventListener('click', function () {
+          var clamped = p.classList.toggle('synopsis-clamped');
+          toggle.textContent = clamped ? '展开全文' : '收起';
+        });
+        wrap.appendChild(toggle);
+      }
+      wrap.appendChild(el('p', 'faint',
+        '简介文字来自 ' + D.sourceLabel(anime) + '，本站未做改写或增补。'));
+    } else {
+      wrap.appendChild(el('p', 'faint', '数据源暂未返回简介，本站不做补充或编造。'));
+    }
+
+    return wrap;
+  }
+
+  /* ------------------------------------------------------------ 顶部信息 */
+
+  function renderFavoriteButton() {
+    if (!favButton) { return; }
+    var fav = global.AnimeStore.isFavorite(anime.id);
+    favButton.textContent = fav ? '♥ 已加入追番' : '♡ 加入我的追番';
+    favButton.classList.toggle('btn-primary', !fav);
+    favButton.setAttribute('aria-pressed', String(fav));
+  }
+
+  function externalButtons() {
+    var wrap = el('div', 'link-row');
+    D.externalLinks(anime).forEach(function (link) {
+      var a = el('a', 'btn btn-sm btn-ext', link.label + ' ↗');
+      a.href = link.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = '在新标签页打开 ' + link.label + ' 的作品页（外部站点）';
+      wrap.appendChild(a);
+    });
+    if (!wrap.children.length) {
+      wrap.appendChild(el('span', 'faint', '暂无外部作品页链接'));
+    }
+    return wrap;
+  }
+
+  function renderHero() {
+    var hero = el('div', 'detail-hero');
+
+    var coverWrap = el('div', 'detail-cover');
+    coverWrap.appendChild(global.UI.buildCover(anime, { tag: D.statusText(anime) }));
+    hero.appendChild(coverWrap);
+
+    var info = el('div', 'detail-info');
+    info.appendChild(el('p', 'eyebrow', anime.titleEn || anime.title || 'Anime'));
+    info.appendChild(el('h1', null, D.displayTitle(anime)));
+
+    var alts = D.altTitles(anime);
+    if (alts.length) { info.appendChild(el('p', 'faint', alts.join(' · '))); }
+
+    var meta = el('div', 'meta-line');
+    [
+      D.yearText(anime),
+      (anime.studios || []).join(' / ') || '制作公司未知',
+      D.episodesText(anime),
+      anime.duration ? '单集 ' + anime.duration : '',
+      D.statusText(anime),
+      '★ ' + D.scoreText(anime) + (anime.scoredBy ? '（' + Number(anime.scoredBy).toLocaleString('en-US') + ' 人评分）' : '')
+    ].filter(Boolean).forEach(function (t) { meta.appendChild(el('span', null, t)); });
+    info.appendChild(meta);
+
+    info.appendChild(global.UI.tagNodes(anime.categories || [], 'tag-cat', 6));
+    info.appendChild(global.UI.tagNodes([].concat(anime.genres || [], anime.themes || []), '', 8));
+
+    info.appendChild(synopsisBlock());
+
+    var actions = el('div', 'action-row');
+    favButton = el('button', 'btn', '');
+    favButton.type = 'button';
+    favButton.addEventListener('click', function () {
+      global.AnimeStore.toggleFavorite(anime.id, D.displayTitle(anime));
+      renderFavoriteButton();
+      global.UI.refreshBadge();
+    });
+    renderFavoriteButton();
+    actions.appendChild(favButton);
+
+    var statusWrap = el('div', 'status-wrap');
+    statusWrap.appendChild(el('span', 'faint', '追番状态'));
+    statusWrap.appendChild(global.UI.statusSelect(anime, {
+      onChange: function () { renderProgress(); }
+    }));
+    actions.appendChild(statusWrap);
+    info.appendChild(actions);
+
+    info.appendChild(externalButtons());
+
+    var watchLink = el('a', 'btn btn-sm btn-ghost', '哪里能看正片 →');
+    watchLink.href = 'about.html';
+    var watchRow = el('div', 'link-row');
+    watchRow.appendChild(watchLink);
+    info.appendChild(watchRow);
+
+    progressHost = el('div');
+    progressHost.style.marginTop = '14px';
+    info.appendChild(progressHost);
+    renderProgress();
+
+    hero.appendChild(info);
+    return hero;
+  }
+
+  /* -------------------------------------------------------------- 集数 */
 
   function episodesSection() {
     var section = el('section', 'card');
@@ -45,8 +191,9 @@
     var head = el('div', 'section-head');
     head.style.margin = '0 0 14px';
     var titleWrap = el('div');
-    titleWrap.appendChild(el('h2', null, '集数列表'));
-    titleWrap.appendChild(el('p', 'faint', '共 ' + anime.episodes + ' 集 · 以占位数据演示，不含任何真实剧集信息'));
+    titleWrap.appendChild(el('h2', null, '集数进度'));
+    titleWrap.appendChild(el('p', 'faint',
+      '共 ' + episodes.length + ' 条占位条目 · 仅用于记录你看到第几集，不代表真实剧集标题'));
     head.appendChild(titleWrap);
 
     var headerProgress = el('div');
@@ -70,12 +217,8 @@
 
     var list = el('ul', 'episode-list');
 
-    function watchedSet() {
-      return new Set(global.AnimeStore.watchedList(anime.id));
-    }
-
     function renderList() {
-      var watched = watchedSet();
+      var watched = new Set(global.AnimeStore.watchedList(anime.id));
       list.innerHTML = '';
       episodes.forEach(function (ep) {
         var li = el('li', 'episode' + (watched.has(ep.n) ? ' watched' : ''));
@@ -83,7 +226,6 @@
         li.setAttribute('role', 'checkbox');
         li.setAttribute('aria-checked', String(watched.has(ep.n)));
         li.appendChild(el('div', 'ep-num', String(ep.n)));
-
         var text = el('div', 'ep-text');
         text.appendChild(el('strong', null, ep.title));
         text.appendChild(el('span', null, ep.desc));
@@ -92,16 +234,11 @@
 
         function toggle() {
           global.AnimeStore.toggleEpisode(anime.id, ep.n);
-          if (!global.AnimeStore.isFavorite(anime.id)) {
-            global.AnimeStore.addFavorite(anime.id, anime.title);
-            global.UI.refreshBadge();
-            renderFavoriteButton();
-          }
+          ensureFavorite();
           renderList();
           renderProgress();
           renderHeaderProgress();
         }
-
         li.addEventListener('click', toggle);
         li.addEventListener('keydown', function (ev) {
           if (ev.key === ' ' || ev.key === 'Enter') {
@@ -109,18 +246,21 @@
             toggle();
           }
         });
-
         list.appendChild(li);
       });
     }
 
-    allBtn.addEventListener('click', function () {
-      global.AnimeStore.setWatched(anime.id, episodes.map(function (e) { return e.n; }));
+    function ensureFavorite() {
       if (!global.AnimeStore.isFavorite(anime.id)) {
-        global.AnimeStore.addFavorite(anime.id, anime.title);
+        global.AnimeStore.addFavorite(anime.id, D.displayTitle(anime));
         global.UI.refreshBadge();
         renderFavoriteButton();
       }
+    }
+
+    allBtn.addEventListener('click', function () {
+      global.AnimeStore.setWatched(anime.id, episodes.map(function (e) { return e.n; }));
+      ensureFavorite();
       renderList();
       renderProgress();
       renderHeaderProgress();
@@ -134,87 +274,26 @@
     });
 
     section.appendChild(list);
-
-    // 暴露给外部（初始渲染）使用
     section.__renderList = renderList;
     return section;
   }
 
-  var favButton = null;
+  /* ------------------------------------------------------------ 侧边信息 */
 
-  function renderFavoriteButton() {
-    if (!favButton) { return; }
-    var fav = global.AnimeStore.isFavorite(anime.id);
-    favButton.textContent = fav ? '♥ 已加入追番' : '♡ 加入我的追番';
-    favButton.classList.toggle('btn-primary', !fav);
-    favButton.setAttribute('aria-pressed', String(fav));
-  }
-
-  var progressHost = null;
-
-  function renderProgress() {
-    if (!progressHost) { return; }
-    progressHost.innerHTML = '';
-    progressHost.appendChild(progressBox());
-  }
-
-  function renderInfo() {
-    var hero = el('div', 'detail-hero');
-
-    var coverWrap = el('div', 'detail-cover');
-    coverWrap.appendChild(global.UI.buildCover(anime, { tag: anime.status }));
-    hero.appendChild(coverWrap);
-
-    var info = el('div', 'detail-info');
-    info.appendChild(el('p', 'eyebrow', anime.titleEn || 'Anime'));
-    info.appendChild(el('h1', null, anime.title));
-    if (anime.titleJa) {
-      info.appendChild(el('p', 'faint', anime.titleJa + ' · ' + anime.titleEn));
-    }
-
-    var meta = el('div', 'meta-line');
-    [
-      anime.year + ' 年 ' + anime.season,
-      anime.studio,
-      '全 ' + anime.episodes + ' 集',
-      '单集 ' + anime.duration,
-      anime.status,
-      '★ ' + Number(anime.rating).toFixed(1) + '（示例评分）'
-    ].forEach(function (t) { meta.appendChild(el('span', null, t)); });
-    info.appendChild(meta);
-
-    info.appendChild(global.UI.tagNodes(anime.categories || [], 'tag-cat'));
-    info.appendChild(el('div', null)).style.height = '8px';
-    info.appendChild(global.UI.tagNodes(anime.tags || []));
-
-    var syn = el('p', 'synopsis');
-    syn.style.marginTop = '16px';
-    syn.textContent = anime.summary;
-    info.appendChild(syn);
-
-    var actions = el('div', 'action-row', null);
-    favButton = el('button', 'btn', '');
-    favButton.type = 'button';
-    favButton.addEventListener('click', function () {
-      global.AnimeStore.toggleFavorite(anime.id, anime.title);
-      renderFavoriteButton();
-      global.UI.refreshBadge();
-    });
-    renderFavoriteButton();
-    actions.appendChild(favButton);
-
-    var link = el('a', 'btn btn-ghost', '哪里能看正片 →');
-    link.href = 'about.html';
-    actions.appendChild(link);
-    info.appendChild(actions);
-
-    progressHost = el('div');
-    progressHost.style.marginTop = '14px';
-    info.appendChild(progressHost);
-    renderProgress();
-
-    hero.appendChild(info);
-    return hero;
+  function relatedList() {
+    var cats = anime.categories || [];
+    return allList.filter(function (item) { return item.id !== anime.id; })
+      .map(function (item) {
+        var shared = (item.categories || []).filter(function (c) { return cats.indexOf(c) !== -1; }).length;
+        return { item: item, shared: shared };
+      })
+      .filter(function (row) { return row.shared > 0; })
+      .sort(function (a, b) {
+        if (b.shared !== a.shared) { return b.shared - a.shared; }
+        return (b.item.score || 0) - (a.item.score || 0);
+      })
+      .slice(0, 4)
+      .map(function (row) { return row.item; });
   }
 
   function renderSidePanel() {
@@ -224,15 +303,18 @@
     infoCard.appendChild(el('h2', null, '作品信息'));
     var kv = el('ul', 'kv');
     [
-      ['原名', anime.titleJa || '—'],
+      ['中文名', D.displayTitle(anime)],
+      ['原名（罗马字）', anime.title || '—'],
+      ['日文名', anime.titleJa || '—'],
       ['英文名', anime.titleEn || '—'],
-      ['放送年份', anime.year + ' 年（' + anime.season + '）'],
-      ['制作公司', anime.studio],
-      ['状态', anime.status],
-      ['集数', '全 ' + anime.episodes + ' 集'],
-      ['单集时长', anime.duration],
-      ['分类', (anime.categories || []).join(' / ')],
-      ['评分', '★ ' + Number(anime.rating).toFixed(1) + '（示例）']
+      ['放送', D.yearText(anime)],
+      ['制作公司', (anime.studios || []).join(' / ') || '—'],
+      ['状态', D.statusText(anime)],
+      ['集数', D.episodesText(anime)],
+      ['单集时长', anime.duration || '—'],
+      ['类型标签', D.allTags(anime).join(' / ') || '—'],
+      ['分数', '★ ' + D.scoreText(anime)],
+      ['数据源', anime.source === 'jikan' ? 'Jikan（MAL）' : anime.source === 'anilist' ? 'AniList' : '占位']
     ].forEach(function (row) {
       var li = el('li');
       li.appendChild(el('span', null, row[0]));
@@ -244,9 +326,10 @@
 
     var notice = el('div', 'notice');
     notice.style.marginTop = '16px';
-    notice.appendChild(el('strong', null, '关于观看'));
+    notice.appendChild(el('strong', null, '关于观看与版权'));
     notice.appendChild(document.createTextNode(
-      '本站只展示资料与你的追番进度，不提供播放、不嵌入任何视频源。想看正片请前往正版平台。'));
+      '本站只展示公开 API 提供的资料（名称、简介、分数等）与你自己记录的进度，'
+      + '不提供播放、不嵌入任何视频源，也不托管封面图片。封面与作品资料版权归原权利人所有。'));
     side.appendChild(notice);
 
     var related = relatedList();
@@ -257,8 +340,10 @@
       var grid = el('div', 'related-grid');
       related.forEach(function (item) {
         var card = el('a', 'related-card');
-        card.href = 'detail.html?id=' + encodeURIComponent(item.id);
-        card.appendChild(global.UI.buildCover(item, { tag: '' }));
+        card.href = global.UI.detailUrl(item.id);
+        card.appendChild(global.UI.buildCover(item, { tag: '', small: true }));
+        var label = el('div', 'related-title', D.displayTitle(item));
+        card.appendChild(label);
         grid.appendChild(card);
       });
       relSection.appendChild(grid);
@@ -268,47 +353,25 @@
     return side;
   }
 
-  var allList = [];
-
-  function relatedList() {
-    var cats = anime.categories || [];
-    var scored = allList.filter(function (item) { return item.id !== anime.id; })
-      .map(function (item) {
-        var shared = (item.categories || []).filter(function (c) { return cats.indexOf(c) !== -1; }).length;
-        return { item: item, shared: shared };
-      })
-      .filter(function (row) { return row.shared > 0; })
-      .sort(function (a, b) {
-        if (b.shared !== a.shared) { return b.shared - a.shared; }
-        return b.item.rating - a.item.rating;
-      })
-      .slice(0, 4);
-    return scored.map(function (row) { return row.item; });
-  }
-
   function render() {
     root.innerHTML = '';
-    root.appendChild(renderInfo());
-
+    root.appendChild(renderHero());
     var columns = el('div', 'detail-columns');
     var epSection = episodesSection();
     columns.appendChild(epSection);
     columns.appendChild(renderSidePanel());
     root.appendChild(columns);
-
     epSection.__renderList();
   }
 
   function init() {
     root = document.getElementById('detailRoot');
-    global.AnimeData.load().then(function (list) {
+    return D.load().then(function (list) {
       allList = list;
-      var id = global.UI.qs('id');
-      anime = global.AnimeData.find(list, id);
+      anime = D.find(list, global.UI.qs('id'));
       if (!anime) { notFound(); return; }
-
-      episodes = global.AnimeData.buildEpisodes(anime);
-      document.title = anime.title + ' · 番组发现 AnimeDiscovery';
+      episodes = D.buildEpisodes(anime);
+      document.title = D.displayTitle(anime) + ' · 番组发现 AnimeDiscovery';
       global.AnimeStore.touchRecent(anime.id);
       render();
     }).catch(function (err) {

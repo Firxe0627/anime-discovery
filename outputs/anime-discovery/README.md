@@ -1,128 +1,162 @@
 # 番组发现 AnimeDiscovery
 
-一个纯前端的「动漫发现 / 追番记录」演示站：浏览番剧资料、按分类和关键词筛选、收藏番剧、
-按集记录观看进度。**不做在线播放，不爬取、不嵌入任何未授权视频源，不含任何网盘 / 磁力 /
-直链入口。** 想看正片请前往正版平台（关于页有说明）。
+纯前端的「动漫发现 / 追番记录」静态站：38 部作品的资料库（真实封面）、本季热门区块、
+分类与关键词搜索、收藏与按集进度、"在看 / 看完 / 计划看"三种追番状态。
 
-技术栈：HTML + CSS + 原生 JavaScript，无后端、无构建、无第三方依赖、无外链字体或图片。
-所有封面都是 CSS 渐变 + 文字程序生成的占位图，离线也能完整显示。
+> **本站只做信息展示。** 资料与封面 URL 来自公开 API（Jikan / MyAnimeList 与 AniList）；
+> 不提供在线播放，不嵌入任何未授权视频源，不含网盘 / 磁力 / 视频直链入口；
+> 也不下载、不转存任何封面图片，图片始终由原站 CDN 直接提供，版权归权利人所有。
 
----
+技术栈：HTML + CSS + 原生 JavaScript。无后端、无构建步骤、无第三方依赖、无框架、无外链字体。
 
-## 怎么本地预览
-
-### 在线预览（GitHub Pages）
+## 在线预览
 
 **<https://firxe0627.github.io/anime-discovery/>**
 
-发布流程是 `.github/workflows/deploy-pages.yml`，它把本目录（`outputs/anime-discovery`）直接发布成静态站点，
-每次推送到 `main` 自动重新部署。仓库：<https://github.com/Firxe0627/anime-discovery>
+由 GitHub Pages 发布，工作流 `.github/workflows/deploy-pages.yml` 会在每次推送到 `main` 时
+把本目录（`outputs/anime-discovery`）重新部署。仓库：<https://github.com/Firxe0627/anime-discovery>
 
-换账号/换仓库重新部署时，启用方法（执行一次即可，两种任选）：
+## 本地预览
 
-1. 网页端：仓库 **Settings → Pages → Build and deployment → Source** 选 **GitHub Actions**，
-   然后到 **Actions** 里等 “Deploy static site to GitHub Pages” 这次运行变绿。
-2. 命令行（已安装 GitHub CLI）：`gh api -X POST repos/{owner}/{repo}/pages -f build_type=workflow`
-
-### 方式一：直接双击打开（最简单）
-
-### 方式一：直接双击打开（最简单）
-
-双击 `outputs/anime-discovery/index.html`，或右键选择用 Chrome / Edge / Firefox 打开。
-
-因为浏览器不允许 `file://` 页面用 `fetch()` 读取本地 JSON，此时页面会自动使用
-`assets/js/data.js` 里同内容的内置数据，功能完全一样（首页的「数据来源」会显示
-「内置兜底数据」）。
-
-### 方式二：起一个本地静态服务器（推荐，走真正的 JSON 文件）
-
-项目里自带一个零依赖的静态服务器 `serve.js`，只需要本机已安装 Node.js，不需要联网安装任何包：
+### 方式一：自带的零依赖静态服务器（推荐）
 
 ```powershell
 cd C:\Users\User\Documents\Codex\2026-09-14\new-chat\outputs\anime-discovery
-node serve.js
+node serve.js          # 换端口：node serve.js 9000
 ```
 
-看到 `番组发现 本地预览已启动：http://localhost:8080/` 后，浏览器访问：<http://localhost:8080/>
+看到 `番组发现 本地预览已启动：http://localhost:8080/` 后访问 <http://localhost:8080/>。
+此时首页「数据来源」显示 `data/anime.json`。
 
-换端口：`node serve.js 9000`。结束：在终端按 `Ctrl+C`。
+### 方式二：直接双击 `index.html`
 
-此时首页「数据来源」会显示 `data/anime.json`，说明读取的是 JSON 文件。
-（服务器只是把静态文件发出去，没有任何后端逻辑，也没有接口。）
+浏览器不允许 `file://` 页面用 `fetch()` 读取本地 JSON，所以站点会自动加载同内容的
+`data/anime.js` / `data/trending.js` 兜底（首页「数据来源」会显示为“本地兜底”）。
+功能完全一致，封面依然走远程 URL，联网即可显示。
 
-如果你更习惯其他静态服务器（例如已安装 Python 的 `python -m http.server 8080`、或 `npx serve`），
-在同一个目录里启动也一样能用，项目本身不依赖任何一种。
+### 封面与离线表现
 
----
+封面用 `<img src="远程 URL">` 直接引用，仓库里没有任何图片文件。断网或图片 404 时，
+封面会自动回退成「渐变底色 + 表情 + 标题」的文字占位封面，不会出现裂图或空白。
 
 ## 功能一览
 
 | 页面 | 说明 |
 | --- | --- |
-| `index.html` 首页 | 推荐海报墙、分类筛选（热血 / 日常 / 奇幻 / 治愈 / 全部）、关键词搜索、排序（评分 / 年份 / 标题 / 集数）、继续观看 |
-| `detail.html` 番剧详情 | 由 `?id=` 定位，展示封面、简介、分类与标签、作品信息表、集数清单（占位数据）、追番按钮、进度条、相关推荐 |
-| `mylist.html` 我的追番 | 收藏列表、观看进度、继续观看、最近浏览、导出记录 JSON、清空全部数据 |
-| `about.html` 关于 | 本站只做信息展示的声明、不做什么的清单、正版平台指引、版权与免责声明 |
+| `index.html` 首页 | 本季/热门区块（有数据才显示）、38 部海报墙、分类筛选（热血/日常/奇幻/治愈/科幻/悬疑）、关键词搜索、排序（分数 / 名称 / 年份 / 集数）、继续观看 |
+| `detail.html` 详情 | 真封面、中文速览 + API 完整简介（可展开）、标签、分数与评分人数、集数进度、追番状态、MyAnimeList / AniList 外链、相关推荐 |
+| `mylist.html` 我的追番 | 收藏列表、状态筛选（全部 / 在看 / 看完 / 计划看 / 有进度）、按集进度、导出 JSON、清空数据 |
+| `about.html` 关于 | 数据来源与署名、不做什么的清单、正版平台指引、版权与免责声明 |
 
 交互细节：
 
-- 搜索：匹配中文名、日文名、英文名、制作公司、标签、分类与简介；多个关键词用空格分隔表示「同时满足」。
-- 收藏：首页封面右上角 ♥ 一键收藏/取消，详情页有「加入我的追番」按钮，导航栏徽标实时更新数量。
-- 进度：详情页点任意一集即可标记「已看」（支持键盘 Tab + 空格/回车），可「全部标记已看」或「清空本作进度」。
-  首次标记进度会自动把该番加入收藏。进度条会同步出现在首页、我的追番页。
-- 数据存储：全部写在浏览器 localStorage，键名 `anime-tracker:v1`，只在本机浏览器里，不会上传。
-  在「我的追番」页可以导出为 JSON 备份；清空浏览器数据会丢掉记录。
-- 响应式：手机（含 375px 宽度）下导航、海报墙、集数列表均自适应，深色主题、动画克制并遵循
-  「减少动态效果」系统设置。
+- 搜索：匹配中文名、罗马字、日文名、英文名、制作公司、类型标签与简介；多个关键词用空格表示「同时满足」。
+- 收藏：首页封面右上角 ♥ 一键收藏/取消；详情页有「加入我的追番」；导航徽标实时更新。
+- 进度：详情页点任意一集即标记已看（支持 Tab + 空格/回车），可「全部标记已看」或「清空本作进度」；
+  首次标记进度会自动加入收藏。集数为空的连载作品（例如 ONE PIECE）按 24 集占位并在页面上说明。
+- 状态：想要「在看 / 看完 / 计划看」三态管理，可在详情页或我的追番条目上直接切换；
+  没手动设置时按进度推导（全看完 → 看完，看过若干集 → 在看，否则 → 计划看）。
+- 数据存储：全部写在浏览器 localStorage（键名 `anime-tracker:v1`），不上传；可导出为 JSON 备份。
+- 响应式：手机（375px）下导航、海报墙、横滑热门条、集数列表均自适应；深色主题、动画克制，
+  并遵循系统的「减少动态效果」设置。
 
----
+## 数据来源
 
-## 数据说明
+| 项 | 来源 |
+| --- | --- |
+| 番剧资料（名称、简介、分数、集数、年份、季节、放送状态、类型标签、制作公司） | **Jikan**（`https://api.jikan.moe/v4`，MyAnimeList 公开 API）；失败时回退 **AniList**（`https://graphql.anilist.co`） |
+| 封面图片 URL | 同上，实际文件托管在 `cdn.myanimelist.net` / `s4.anilist.co` |
+| MAL 作品页链接 | 由 `mal_id` 拼出 `https://myanimelist.net/anime/<id>` |
+| 本季 / 热门列表 | Jikan `seasons/now` → Jikan `top/anime?filter=airing` → AniList `TRENDING_DESC + RELEASING` |
+| 中文标题 | 本站整理（API 不提供中文名） |
+| 中文速览 | 仅最早收录的 12 部有，页面标注「本站编辑整理的概述，非官方简介」；其余条目只显示 API 原文 |
 
-- 12 部示例番剧数据在 `data/anime.json`，字段包括：
-  `id`、`title`、`titleJa`、`titleEn`、`year`、`season`、`studio`、`status`、`rating`、`duration`、
-  `episodes`、`categories`、`tags`、`emoji`、`palette`（封面渐变色）、`summary`。
-- 番剧名称使用公开常见的作品名做展示示例；**评分、集数、简介均为示例 / 占位内容**，请勿当作准确资料。
-- 集数列表由 `assets/js/data.js` 的 `buildEpisodes()` 按集数生成「第 N 集 + 占位简介」，
-  刻意不编造真实剧集标题。
-- 想换数据：直接编辑 `data/anime.json`（若用 `file://` 打开，同时同步 `assets/js/data.js`
-  里的 `ANIME_FALLBACK` 数组）。
+**本次抓取实况（记录在 `work/fetch-report.md`）**：抓取时 Jikan 在当前网络下持续返回 504，
+脚本在连续失败 2 次后熔断，因此 38 部资料全部来自 AniList 回退源（站内「作品信息 → 数据源」会标注）；
+「本季/热门」的 Jikan 两个接口同样不可用，最终用 AniList 的 `TRENDING_DESC + RELEASING` 拿到 18 条。
+两条链路都失败时脚本会写入空列表，首页自动隐藏该区块并在报告中说明——本次没有出现这种情况。
 
----
+如果某个作品两个数据源都匹配不到，脚本会保留占位条目、把简介留空（页面显示「数据源暂未返回简介」），
+**不会编造简介或分数**。本次 38 部全部匹配成功，占位 0 条。
+
+## 重新跑抓取脚本
+
+脚本在 `work/fetch-anime-data.mjs`，用 Node 自带 `fetch`，不需要 `npm install`：
+
+```powershell
+cd C:\Users\User\Documents\Codex\2026-09-14\new-chat
+node work/fetch-anime-data.mjs              # 默认使用 work/api-cache 缓存（7 天）
+node work/fetch-anime-data.mjs --no-cache   # 忽略缓存，重新请求 API
+node work/fetch-anime-data.mjs --only=trending   # 只更新「本季/热门」
+node work/fetch-anime-data.mjs --only=anime      # 只更新番剧资料
+```
+
+脚本行为：
+
+- 请求间隔 ≥ 1100ms；遇 `429` 会按 `Retry-After`（或指数退避 2s→4s→8s→16s）重试，最多 4 次；
+  单次请求 20 秒超时；`5xx` 同样重试。
+- 数据源优先级 Jikan → AniList；Jikan 连续失败 2 次即熔断，本次运行之后直接走 AniList（避免逐条空等）。
+- 成功结果缓存到 `work/api-cache/`（已被 `.gitignore` 忽略），失败结果缓存 10 分钟，方便反复调试时快速重跑。
+- **只保存文本与图片 URL，绝不下载图片或视频文件。**
+- 运行结束输出 `work/fetch-report.md`（逐条匹配结果、汇总、占位清单）。
+
+要增删作品，编辑脚本顶部的 `ENTRIES` 数组（`id` / `titleZh` / `query` / `expect` / `malId` /
+`categories` / `emoji`），然后重跑脚本即可。`expect` 是校验正则，用来确认 API 返回的确实是想要的那部作品。
+
+## 数据结构
+
+`data/anime.json` 是数组，每条主要字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` | 站内唯一标识，详情页 `detail.html?id=<id>` |
+| `titleZh` / `title` / `titleJa` / `titleEn` | 中文名 / 罗马字 / 日文名 / 英文名 |
+| `cover` / `coverSmall` | 封面图片 URL（大图 / 小图），不下载到仓库 |
+| `synopsis` | API 返回的完整简介（原文，未改写） |
+| `summaryZh` | 仅前 12 部有的中文速览（可空） |
+| `score` / `scoredBy` | 分数 / 评分人数 |
+| `episodes` / `duration` | 集数（可能为 `null`）/ 单集时长 |
+| `year` / `season` / `status` | 年份 / 季节（winter/spring/summer/fall）/ 放送状态 |
+| `genres` / `themes` / `studios` | 类型 / 主题 / 制作公司 |
+| `categories` | 本站分类（热血/日常/奇幻/治愈/科幻/悬疑），用于首页筛选 |
+| `malId` / `malUrl` / `anilistId` / `anilistUrl` | 外部作品页链接 |
+| `source` | `jikan` / `anilist` / `placeholder` |
+| `emoji` / `palette` | 文字兜底封面用的图标与渐变色 |
+
+`data/trending.json` 结构：`{ generatedAt, source, season, items: [{ rank, malId, title, cover, score, episodes, year, categories, malUrl, ... }] }`。
+每个 `.json` 都有一份同内容的 `.js`（`window.__ANIME_DATA__` / `window.__TRENDING_DATA__`）供 `file://` 兜底。
 
 ## 本项目中创建的所有文件
 
-所有路径都相对于 `C:\Users\User\Documents\Codex\2026-09-14\new-chat\`。
-
-成品（`outputs/anime-discovery/`）：
+相对于 `C:\Users\User\Documents\Codex\2026-09-14\new-chat\`：
 
 | 文件 | 作用 |
 | --- | --- |
 | `outputs/anime-discovery/README.md` | 本说明文档 |
-| `outputs/anime-discovery/index.html` | 首页：海报墙、分类筛选、搜索、排序、继续观看 |
-| `outputs/anime-discovery/detail.html` | 番剧详情页（通过 `?id=xxx` 定位番剧） |
-| `outputs/anime-discovery/mylist.html` | 我的追番：收藏、进度、最近浏览、导出与清空 |
-| `outputs/anime-discovery/about.html` | 关于页：信息展示声明、正版平台指引、免责声明 |
-| `outputs/anime-discovery/data/anime.json` | 12 部示例番剧的 JSON 数据 |
-| `outputs/anime-discovery/assets/css/style.css` | 深色二次元主题、组件与响应式样式 |
-| `outputs/anime-discovery/assets/js/data.js` | 数据加载（fetch JSON + 内置兜底）、占位集数生成 |
-| `outputs/anime-discovery/assets/js/store.js` | localStorage 封装（收藏 / 进度 / 最近浏览 / 统计） |
-| `outputs/anime-discovery/assets/js/ui.js` | 通用 UI：封面生成、海报卡、追番条目卡、导航与徽标 |
-| `outputs/anime-discovery/assets/js/home.js` | 首页逻辑：筛选、搜索、排序、继续观看 |
-| `outputs/anime-discovery/assets/js/detail.js` | 详情页逻辑：资料渲染、集数勾选、追番按钮 |
-| `outputs/anime-discovery/assets/js/mylist.js` | 我的追番逻辑：列表渲染、导出、清空 |
-| `outputs/anime-discovery/serve.js` | 零依赖本地静态服务器（本地预览用，非站点运行必需） |
+| `outputs/anime-discovery/index.html` | 首页：本季热门、海报墙、分类 / 搜索 / 排序 |
+| `outputs/anime-discovery/detail.html` | 番剧详情页（`?id=` 定位） |
+| `outputs/anime-discovery/mylist.html` | 我的追番：收藏、状态筛选、导出与清空 |
+| `outputs/anime-discovery/about.html` | 关于：数据来源署名、正版平台指引、免责声明 |
+| `outputs/anime-discovery/data/anime.json` | 38 部番剧元数据（权威数据） |
+| `outputs/anime-discovery/data/anime.js` | 同内容 JS，供 `file://` 兜底 |
+| `outputs/anime-discovery/data/trending.json` | 本季 / 热门列表（18 条） |
+| `outputs/anime-discovery/data/trending.js` | 同内容 JS 兜底 |
+| `outputs/anime-discovery/assets/css/style.css` | 深色主题、封面（真图 + 文字兜底）、响应式样式 |
+| `outputs/anime-discovery/assets/js/data.js` | 数据加载（JSON → JS 兜底）与字段取值器 |
+| `outputs/anime-discovery/assets/js/store.js` | localStorage：收藏 / 进度 / 状态 / 最近浏览 |
+| `outputs/anime-discovery/assets/js/ui.js` | 封面、海报卡、追番条目卡、热门卡、导航徽标 |
+| `outputs/anime-discovery/assets/js/home.js` | 首页逻辑 |
+| `outputs/anime-discovery/assets/js/detail.js` | 详情页逻辑 |
+| `outputs/anime-discovery/assets/js/mylist.js` | 我的追番逻辑 |
+| `outputs/anime-discovery/serve.js` | 零依赖本地静态服务器（预览用，非运行必需） |
+| `work/fetch-anime-data.mjs` | 数据抓取脚本（Jikan → AniList），一次性运行 |
+| `work/fetch-report.md` | 最近一次抓取的报告 |
+| `work/plan.md` | 最初的实现计划（过程文档） |
 
-过程文件（`work/`，不属于成品，可随时删除）：
-
-| 文件 | 作用 |
-| --- | --- |
-| `work/plan.md` | 开工前的实现计划：目标与边界、数据结构、文件结构、步骤与验证清单 |
-
----
+被 `.gitignore` 排除、不会提交的：`work/api-cache/`（API 响应缓存）、`node_modules/`、`.env` 等密钥文件。
 
 ## 版权与免责声明
 
-本项目是前端演示作品。文中出现的番剧名称、商标与标识归各自权利人所有，仅用于说明性的信息展示，
-不代表与任何权利人或平台存在关联、合作或授权关系。站内封面为程序生成的占位图，未使用官方素材。
-本站不提供任何视频内容与未授权资源入口；如需公开部署，请自行确认数据来源的合规性并保留本声明。
+番剧名称、商标、标识与封面图片归各自权利人所有，本项目仅用于说明性的信息展示与学习示例，
+不代表与任何权利人或平台存在关联、合作或授权关系。本站不提供任何视频内容与未授权资源入口；
+若权利人认为某项展示不妥，可通过仓库 issue 联系删除。

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>关于本站 · 番组发现 AnimeDiscovery</title>
-<meta name="description" content="本站只做动漫信息展示与个人追番记录，不提供在线播放；观看正片请前往正版平台。">
+<meta name="description" content="本站只做动漫信息展示与个人追番记录：数据来自 Jikan(MyAnimeList) 与 AniList，封面版权归权利人，不提供在线播放。">
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🌸</text></svg>">
 </head>
@@ -29,19 +29,20 @@
   <h1>关于本站</h1>
   <p class="notice" style="max-width:80ch">
     <strong>本站只做信息展示。</strong>
-    所有页面仅呈现番剧的名称、标签、简介等资料性内容，以及你自己在浏览器里记录的追番进度。
-    本站<strong>不提供、不存储、不托管、不嵌入任何视频内容</strong>，也不链接任何未授权片源。
-    想观看正片，请前往持牌的正版平台。
+    页面上的番剧名称、简介、分数、集数等资料来自公开 API（Jikan / MyAnimeList 与 AniList），
+    封面图通过 API 返回的图片 URL 直接引用。本站<strong>不提供、不存储、不托管、不嵌入任何视频内容</strong>，
+    也不链接任何未授权片源。想观看正片，请前往持牌的正版平台。
   </p>
 
   <div class="about-grid" style="margin-top:24px">
     <div class="card">
       <h2>这个站点做什么</h2>
       <ul>
-        <li>展示 12 部示例番剧的资料卡片，可按「热血 / 日常 / 奇幻 / 治愈」分类浏览。</li>
-        <li>支持按标题、标签、简介关键词搜索，并按评分、年份、集数排序。</li>
-        <li>可以收藏番剧、按集标记观看进度，进度以进度条形式展示。</li>
-        <li>全部数据都是示例数据，集数清单为占位内容，不代表真实剧集信息。</li>
+        <li>收录 38 部常见动漫作品，覆盖热血 / 日常 / 奇幻 / 治愈 / 科幻 / 悬疑，用真实封面海报墙展示。</li>
+        <li>支持按标题（中文名 / 罗马字 / 日文名 / 英文名）、标签与简介关键词搜索，按分数、年份、集数排序。</li>
+        <li>「本季 / 热门」区块展示当前热播连载作品，数据同样来自公开 API。</li>
+        <li>可以收藏番剧、按集标记观看进度，并用「在看 / 看完 / 计划看」管理自己的追番状态。</li>
+        <li>详情页可跳转到 MyAnimeList 或 AniList 的作品页，方便查看完整资料。</li>
       </ul>
 
       <h2 style="margin-top:22px">这个站点不做什么</h2>
@@ -49,18 +50,51 @@
         <li>❌ 不提供在线播放、不提供播放器、不提供任何视频文件或 m3u8 / mp4 直链。</li>
         <li>❌ 不爬取、不转载、不嵌入盗版或未授权的视频源、字幕或资源。</li>
         <li>❌ 不提供网盘链接、磁力链、下载地址等任何侵权入口。</li>
+        <li>❌ 不下载、不缓存、不重新分发任何封面图片；封面始终由原站 CDN 直接提供。</li>
         <li>❌ 不做用户账号、不做服务端存储，不收集你的个人信息。</li>
       </ul>
 
       <h2 style="margin-top:22px">数据与隐私</h2>
       <ul>
-        <li>番剧资料存放在项目内的 <code>data/anime.json</code>，可自由替换成你自己的数据。</li>
-        <li>收藏与进度写在你浏览器的 localStorage（键名 <code>anime-tracker:v1</code>），
+        <li>番剧资料存放在项目内的 <code>data/anime.json</code>（热门列表在
+          <code>data/trending.json</code>），由 <code>work/fetch-anime-data.mjs</code> 抓取生成。</li>
+        <li>收藏、进度与追番状态写在你浏览器的 localStorage（键名 <code>anime-tracker:v1</code>），
           清除浏览器数据即会清空，本站无法读取也无法恢复。</li>
-        <li>页面不加载任何第三方脚本、统计或广告。</li>
+        <li>页面不加载任何第三方脚本、统计或广告；只有封面图片来自外部 CDN。</li>
       </ul>
     </div>
 
+    <div class="card">
+      <h2>数据来源与署名</h2>
+      <ul class="legal-list">
+        <li>
+          <strong>Jikan API（首选）</strong>
+          社区维护的 MyAnimeList 公开 API（<code>api.jikan.moe/v4</code>），提供名称、简介、分数、集数、放送信息等。
+        </li>
+        <li>
+          <strong>AniList GraphQL API（回退）</strong>
+          当 Jikan 不可用时，脚本改用 AniList 获取同一批资料（<code>graphql.anilist.co</code>）；
+          这类条目在详情页的「作品信息 → 数据源」里标注为 AniList。
+        </li>
+        <li>
+          <strong>封面图片</strong>
+          图片 URL 由上述 API 返回，实际文件托管在各自的 CDN 上，版权归原权利人所有；
+          本站只做引用，不下载、不转存、不裁剪、不加水印。
+        </li>
+        <li>
+          <strong>中文名与中文速览</strong>
+          中文标题由本站整理；最早收录的 12 部附有本站编辑整理的中文速览，页面上已标注
+          「非官方简介」，其余全部以 API 原文为准，未做改写。
+        </li>
+      </ul>
+      <p class="faint" style="margin-top:14px">
+        如果某个作品在 API 中没有匹配结果，脚本会保留占位条目并留空简介，不会编造内容。
+        本站与 MyAnimeList、AniList 均无隶属或合作关系。
+      </p>
+    </div>
+  </div>
+
+  <div class="about-grid" style="margin-top:20px">
     <div class="card">
       <h2>去哪里看正片</h2>
       <p class="faint" style="margin-top:0">以下是常见的正版观看渠道（仅作示例，请以各平台实际版权区域为准）：</p>
@@ -86,24 +120,23 @@
         本站不会自动跳转到上述站点，请自行搜索并遵守各平台的服务条款与所在地法律。
       </p>
     </div>
-  </div>
 
-  <div class="card" style="margin-top:22px">
-    <h2>版权与免责声明</h2>
-    <p class="muted" style="margin-top:0">
-      本项目中出现的番剧名称、商标与相关标识归各自权利人所有，仅用于说明性的信息展示与学习示例，
-      不代表本站与任何权利人或平台存在关联、合作或授权关系。
-      站内封面为程序生成的占位图（纯渐变 + 文字），未使用任何官方视觉素材。
-      本项目是一个前端演示作品，若需用于公开部署，请自行确认数据来源的合规性并保留本声明。
-    </p>
+    <div class="card">
+      <h2>版权与免责声明</h2>
+      <p class="muted" style="margin-top:0">
+        本项目中出现的番剧名称、商标、标识与封面图片归各自权利人所有，仅用于说明性的信息展示与学习示例，
+        不代表本站与任何权利人或平台存在关联、合作或授权关系。
+        本站不提供任何视频内容与未授权资源入口；若权利人认为某项展示不妥，可通过仓库 issue 联系删除。
+        本项目为前端演示作品，如需公开部署，请自行确认数据来源的合规性并保留本声明。
+      </p>
+      <p style="margin-bottom:0"><a class="btn btn-primary" href="index.html">返回首页浏览番剧 →</a></p>
+    </div>
   </div>
-
-  <p style="margin-top:22px"><a class="btn btn-primary" href="index.html">返回首页浏览番剧 →</a></p>
 </main>
 
 <footer class="site-footer">
   <div class="wrap footer-inner">
-    <span>© <span data-year>2026</span> 番组发现 · 仅作信息展示与个人追番记录的演示站点</span>
+    <span>© <span data-year>2026</span> 番组发现 · 资料来自 Jikan / AniList，仅作信息展示</span>
     <span><a href="index.html">首页</a> · <a href="mylist.html">我的追番</a></span>
   </div>
 </footer>

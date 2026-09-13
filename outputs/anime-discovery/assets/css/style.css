@@ -364,16 +364,24 @@ select {
 .cover {
   position: relative;
   aspect-ratio: 3 / 4.2;
+  overflow: hidden;
+  isolation: isolate;
+  background: #131730;
+}
+
+/* 文字兜底封面：离线或图片 404 时显示的渐变 + 标题 */
+.cover-fallback {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   gap: 6px;
   padding: 14px;
-  overflow: hidden;
-  isolation: isolate;
+  z-index: 0;
 }
 
-.cover::before {
+.cover-fallback::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -385,12 +393,30 @@ select {
   z-index: -1;
 }
 
-.cover::after {
+.cover-fallback::after {
   content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, transparent 34%, rgba(6, 7, 18, 0.72) 100%);
   z-index: -1;
+}
+
+/* 真实封面图（远程 URL，本站不下载图片文件） */
+.cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  z-index: 1;
+}
+
+/* 图片加载成功后只留渐变底色，隐藏占位文字，避免文字压在海报上 */
+.cover.has-image .cover-fallback > * { display: none; }
+
+.cover.has-image .cover-fallback::after {
+  background: linear-gradient(180deg, rgba(6, 7, 18, 0.28) 0%, transparent 26%, transparent 62%, rgba(6, 7, 18, 0.62) 100%);
 }
 
 .cover-emoji {
@@ -412,6 +438,7 @@ select {
   position: absolute;
   top: 10px;
   left: 10px;
+  z-index: 3;
   padding: 3px 9px;
   border-radius: 999px;
   background: rgba(8, 10, 22, 0.72);
@@ -424,6 +451,7 @@ select {
   position: absolute;
   top: 8px;
   right: 8px;
+  z-index: 4;
   width: 30px;
   height: 30px;
   border-radius: 50%;
@@ -615,6 +643,7 @@ select {
 
 .related-card { border-radius: var(--radius-s); overflow: hidden; border: 1px solid var(--line-soft); }
 .related-card .cover { aspect-ratio: 3 / 3.6; padding: 10px; }
+.related-card .cover-fallback { padding: 10px; }
 .related-card .cover-title { font-size: 0.84rem; }
 .related-card .cover-emoji { font-size: 1.4rem; }
 
@@ -642,6 +671,7 @@ select {
 }
 
 .mylist-item .thumb .cover { aspect-ratio: 3 / 4.2; padding: 8px; }
+.mylist-item .thumb .cover-fallback { padding: 8px; }
 .mylist-item .thumb .cover-emoji { font-size: 1.2rem; }
 .mylist-item .thumb .cover-title { font-size: 0.62rem; }
 
@@ -710,6 +740,133 @@ select {
 .footer-inner { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
 .footer-inner a:hover { color: var(--text); }
 
+/* --------------------------- 本季 / 热门 区块 --------------------------- */
+
+.trend-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(148px, 1fr);
+  gap: 14px;
+  overflow-x: auto;
+  padding: 4px 4px 14px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.trend-card {
+  width: 148px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, var(--panel), #12152b);
+  overflow: hidden;
+  scroll-snap-align: start;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.trend-card:hover { transform: translateY(-3px); border-color: rgba(124, 92, 255, 0.6); }
+
+.trend-link { position: relative; display: block; }
+.trend-link .cover { aspect-ratio: 3 / 4; border-radius: 0; }
+.trend-link .cover-title { font-size: 0.78rem; }
+.trend-link .cover-emoji { font-size: 1.3rem; }
+
+.trend-rank {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 3;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(8, 10, 22, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--warn);
+}
+
+.trend-body { padding: 9px 11px 12px; display: flex; flex-direction: column; gap: 4px; }
+
+.trend-title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.trend-hint { color: var(--accent-3); }
+
+/* ------------------------------ 简介区块 -------------------------------- */
+
+.synopsis-block { margin: 16px 0 4px; }
+.synopsis-block h3 { margin: 14px 0 6px; font-size: 0.94rem; color: var(--text); }
+.synopsis-block h3:first-child { margin-top: 0; }
+
+.summary-zh {
+  padding: 12px 14px;
+  border-radius: var(--radius-s);
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  background: rgba(124, 92, 255, 0.1);
+}
+
+.summary-zh p { margin: 0 0 6px; color: var(--text); }
+.summary-zh p.faint { margin: 0; }
+
+.synopsis { color: var(--text-dim); margin: 0 0 8px; }
+
+.synopsis-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* --------------------------- 追番状态与进度 ----------------------------- */
+
+.status-wrap { display: flex; align-items: center; gap: 8px; }
+.status-wrap .faint { font-size: 0.8rem; }
+
+.status-select {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(22, 26, 51, 0.9);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.track-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.status-tag { border-color: transparent; font-weight: 600; }
+.status-watching { background: rgba(53, 214, 200, 0.2); color: #8ff3e8; }
+.status-completed { background: rgba(124, 92, 255, 0.26); color: #cfc3ff; }
+.status-planned { background: rgba(255, 207, 92, 0.18); color: var(--warn); }
+
+/* ------------------------------ 外链按钮 -------------------------------- */
+
+.link-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+
+.btn-ext {
+  border-color: rgba(53, 214, 200, 0.42);
+  background: rgba(53, 214, 200, 0.1);
+}
+
+.btn-ext:hover { border-color: var(--accent-3); background: rgba(53, 214, 200, 0.2); }
+
+.meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.related-title {
+  padding: 8px 10px 10px;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* ------------------------------ 响应式 --------------------------------- */
 
 @media (max-width: 900px) {
@@ -728,8 +885,12 @@ select {
   .hero-stats { gap: 14px; }
   .poster-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
   .poster-body { padding: 10px; }
+  .trend-strip { grid-auto-columns: minmax(132px, 1fr); gap: 10px; }
+  .trend-card { width: 132px; }
   .detail-hero { grid-template-columns: 1fr; padding: 16px; }
   .detail-cover { max-width: 220px; }
+  .action-row { gap: 8px; }
+  .status-wrap { width: 100%; justify-content: space-between; }
   main { padding: 18px 0 48px; }
 }
 

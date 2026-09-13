@@ -1,0 +1,425 @@
+/* 由 work/fetch-anime-data.mjs 生成，供 file:// 打开时兜底使用，请勿手改。 */
+window.__TRENDING_DATA__ = {
+  "generatedAt": "2026-09-13T19:37:08.552Z",
+  "source": "anilist:trending(releasing)",
+  "season": "2026 夏季",
+  "items": [
+    {
+      "rank": 1,
+      "malId": 59193,
+      "title": "Mushoku Tensei III: Isekai Ittara Honki Dasu",
+      "titleEn": "Mushoku Tensei: Jobless Reincarnation Season 3",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx178789-hNXjKFzUq7mk.jpg",
+      "score": 8.4,
+      "episodes": 14,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Adventure",
+        "Drama",
+        "Ecchi",
+        "Fantasy"
+      ],
+      "categories": [
+        "奇幻",
+        "治愈"
+      ],
+      "malUrl": "https://myanimelist.net/anime/59193",
+      "anilistUrl": "https://anilist.co/anime/178789"
+    },
+    {
+      "rank": 2,
+      "malId": 21,
+      "title": "ONE PIECE",
+      "titleEn": "ONE PIECE",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx21-ELSYx3yMPcKM.jpg",
+      "score": 8.7,
+      "episodes": null,
+      "year": 1999,
+      "season": "fall",
+      "status": "Currently Airing",
+      "genres": [
+        "Action",
+        "Adventure",
+        "Comedy",
+        "Drama",
+        "Fantasy"
+      ],
+      "categories": [
+        "热血",
+        "奇幻"
+      ],
+      "malUrl": "https://myanimelist.net/anime/21",
+      "anilistUrl": "https://anilist.co/anime/21"
+    },
+    {
+      "rank": 3,
+      "malId": 61240,
+      "title": "Futsutsuka na Akujo de wa Gozaimasu ga: Suuguu Chouso Torikae Den",
+      "titleEn": "Though I Am an Inept Villainess",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx188139-1qIJfWxym8FX.jpg",
+      "score": 7.8,
+      "episodes": 11,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Drama",
+        "Romance"
+      ],
+      "categories": [
+        "日常",
+        "治愈"
+      ],
+      "malUrl": "https://myanimelist.net/anime/61240",
+      "anilistUrl": "https://anilist.co/anime/188139"
+    },
+    {
+      "rank": 4,
+      "malId": 63832,
+      "title": "Seihantai na Kimi to Boku 2nd Season",
+      "titleEn": "You and I Are Polar Opposites Season 2",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx210031-TppgcHZh46LY.jpg",
+      "score": 8.2,
+      "episodes": 13,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Comedy",
+        "Drama",
+        "Romance",
+        "Slice of Life"
+      ],
+      "categories": [
+        "日常",
+        "治愈"
+      ],
+      "malUrl": "https://myanimelist.net/anime/63832",
+      "anilistUrl": "https://anilist.co/anime/210031"
+    },
+    {
+      "rank": 5,
+      "malId": 62811,
+      "title": "Kimi no Koto ga Dai Dai Dai Dai Daisuki na 100-nin no Kanojo 3rd Season",
+      "titleEn": "The 100 Girlfriends Who Really, Really, Really, Really, REALLY Love You Season 3",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx200637-QLR5uv9SbQ69.jpg",
+      "score": 7.9,
+      "episodes": 12,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Comedy",
+        "Ecchi",
+        "Romance"
+      ],
+      "categories": [
+        "日常"
+      ],
+      "malUrl": "https://myanimelist.net/anime/62811",
+      "anilistUrl": "https://anilist.co/anime/200637"
+    },
+    {
+      "rank": 6,
+      "malId": 62001,
+      "title": "Yomi no Tsugai",
+      "titleEn": "Daemons of the Shadow Realm",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx195600-moI0UFArtOme.jpg",
+      "score": 7.8,
+      "episodes": 24,
+      "year": 2026,
+      "season": "spring",
+      "status": "Currently Airing",
+      "genres": [
+        "Action",
+        "Adventure",
+        "Comedy",
+        "Fantasy",
+        "Supernatural"
+      ],
+      "categories": [
+        "热血",
+        "奇幻"
+      ],
+      "malUrl": "https://myanimelist.net/anime/62001",
+      "anilistUrl": "https://anilist.co/anime/195600"
+    },
+    {
+      "rank": 7,
+      "malId": 58878,
+      "title": "Sayonara Lara",
+      "titleEn": "Goodbye, Lara",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx177637-8onaQWqKW1C3.jpg",
+      "score": 7.6,
+      "episodes": 12,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Drama",
+        "Fantasy",
+        "Romance"
+      ],
+      "categories": [
+        "奇幻",
+        "日常"
+      ],
+      "malUrl": "https://myanimelist.net/anime/58878",
+      "anilistUrl": "https://anilist.co/anime/177637"
+    },
+    {
+      "rank": 8,
+      "malId": 60636,
+      "title": "BLEACH: Sennen Kessen-hen - Kashin-tan",
+      "titleEn": "BLEACH: Thousand-Year Blood War - The Calamity",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx185874-aU3e6tBT6wwA.jpg",
+      "score": 9,
+      "episodes": 10,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Action",
+        "Adventure",
+        "Supernatural"
+      ],
+      "categories": [
+        "热血",
+        "奇幻"
+      ],
+      "malUrl": "https://myanimelist.net/anime/60636",
+      "anilistUrl": "https://anilist.co/anime/185874"
+    },
+    {
+      "rank": 9,
+      "malId": 59970,
+      "title": "Tensei Shitara Slime Datta Ken 4th Season",
+      "titleEn": "That Time I Got Reincarnated as a Slime Season 4",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx182205-q2AeO1owuQbO.jpg",
+      "score": 8.3,
+      "episodes": 24,
+      "year": 2026,
+      "season": "spring",
+      "status": "Currently Airing",
+      "genres": [
+        "Action",
+        "Adventure",
+        "Comedy",
+        "Fantasy"
+      ],
+      "categories": [
+        "热血",
+        "奇幻"
+      ],
+      "malUrl": "https://myanimelist.net/anime/59970",
+      "anilistUrl": "https://anilist.co/anime/182205"
+    },
+    {
+      "rank": 10,
+      "malId": 62856,
+      "title": "Nijusseiki Denki Mokuroku: Eureka Evrika",
+      "titleEn": "Sparks of Tomorrow",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx103303-IF43hFJPPv2Y.png",
+      "score": 7.6,
+      "episodes": 13,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Adventure",
+        "Comedy",
+        "Romance"
+      ],
+      "categories": [
+        "日常"
+      ],
+      "malUrl": "https://myanimelist.net/anime/62856",
+      "anilistUrl": "https://anilist.co/anime/103303"
+    },
+    {
+      "rank": 11,
+      "malId": 62435,
+      "title": "Sekai Saikyou no Kouei: Meikyuukoku no Shinjin Tansakusha",
+      "titleEn": "The World's Strongest Rearguard",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx198409-EiWJXfYnvfu4.png",
+      "score": 5.5,
+      "episodes": 12,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Action",
+        "Adventure",
+        "Fantasy"
+      ],
+      "categories": [
+        "热血",
+        "奇幻"
+      ],
+      "malUrl": "https://myanimelist.net/anime/62435",
+      "anilistUrl": "https://anilist.co/anime/198409"
+    },
+    {
+      "rank": 12,
+      "malId": 61169,
+      "title": "BLACK TORCH",
+      "titleEn": "BLACK TORCH",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx187538-fXVXKYUA3VV6.jpg",
+      "score": 7,
+      "episodes": 12,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Action",
+        "Adventure",
+        "Fantasy",
+        "Sci-Fi",
+        "Supernatural"
+      ],
+      "categories": [
+        "热血",
+        "奇幻"
+      ],
+      "malUrl": "https://myanimelist.net/anime/61169",
+      "anilistUrl": "https://anilist.co/anime/187538"
+    },
+    {
+      "rank": 13,
+      "malId": 61316,
+      "title": "Re:Zero kara Hajimeru Isekai Seikatsu 4th Season",
+      "titleEn": "Re:ZERO -Starting Life in Another World- Season 4",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx189046-yaHWtS5FII46.jpg",
+      "score": 9,
+      "episodes": 19,
+      "year": 2026,
+      "season": "spring",
+      "status": "Currently Airing",
+      "genres": [
+        "Action",
+        "Adventure",
+        "Drama",
+        "Fantasy",
+        "Psychological",
+        "Romance",
+        "Thriller"
+      ],
+      "categories": [
+        "热血",
+        "奇幻"
+      ],
+      "malUrl": "https://myanimelist.net/anime/61316",
+      "anilistUrl": "https://anilist.co/anime/189046"
+    },
+    {
+      "rank": 14,
+      "malId": 62076,
+      "title": "Super no Ura de Yani Suu Futari",
+      "titleEn": "Smoking Behind the Supermarket with You",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx196187-0dgFi2CPp3xn.jpg",
+      "score": 8.2,
+      "episodes": 12,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Comedy",
+        "Romance",
+        "Slice of Life"
+      ],
+      "categories": [
+        "日常"
+      ],
+      "malUrl": "https://myanimelist.net/anime/62076",
+      "anilistUrl": "https://anilist.co/anime/196187"
+    },
+    {
+      "rank": 15,
+      "malId": 62876,
+      "title": "Saijo no Osewa: Takane no Hanadarake na Meimonkou de, Gakuin Ichi no Ojou-sama (Seikatsu Nouryoku Kaimu) wo Kagenagara Osewa suru Koto ni Narimashita",
+      "titleEn": "Rich Girl Caretaker: I'm Secretly the Caregiver of the Most Popular Girl in This Rich Kid School",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx201514-BHAeWhSbcBrT.png",
+      "score": 6.9,
+      "episodes": 12,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Comedy",
+        "Romance"
+      ],
+      "categories": [
+        "日常"
+      ],
+      "malUrl": "https://myanimelist.net/anime/62876",
+      "anilistUrl": "https://anilist.co/anime/201514"
+    },
+    {
+      "rank": 16,
+      "malId": 62171,
+      "title": "Kuroneko to Majo no Kyoushitsu",
+      "titleEn": "The Classroom of the Black Cat and a Witch",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx196974-mZk1uyrx0XNx.png",
+      "score": 6.3,
+      "episodes": 24,
+      "year": 2026,
+      "season": "spring",
+      "status": "Currently Airing",
+      "genres": [
+        "Fantasy"
+      ],
+      "categories": [
+        "奇幻"
+      ],
+      "malUrl": "https://myanimelist.net/anime/62171",
+      "anilistUrl": "https://anilist.co/anime/196974"
+    },
+    {
+      "rank": 17,
+      "malId": 63817,
+      "title": "Hell Mode: Yarikomi-zuki no Gamer wa Haisettei no Isekai de Musou Suru 2nd Season",
+      "titleEn": "HELL MODE: The Hardcore Gamer Dominates in Another World with Garbage Balancing Season 2",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx209983-sFOcKyqMufxb.jpg",
+      "score": 7.2,
+      "episodes": 13,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Action",
+        "Adventure",
+        "Fantasy"
+      ],
+      "categories": [
+        "热血",
+        "奇幻"
+      ],
+      "malUrl": "https://myanimelist.net/anime/63817",
+      "anilistUrl": "https://anilist.co/anime/209983"
+    },
+    {
+      "rank": 18,
+      "malId": 59741,
+      "title": "Tsuihou Sareta Tensei Juukishi wa Game Chishiki de Musou Suru",
+      "titleEn": "The Exiled Heavy Knight Knows How to Game the System",
+      "cover": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx180136-gtMTCRlOD4OE.jpg",
+      "score": 6.7,
+      "episodes": 26,
+      "year": 2026,
+      "season": "summer",
+      "status": "Currently Airing",
+      "genres": [
+        "Action",
+        "Fantasy"
+      ],
+      "categories": [
+        "热血",
+        "奇幻"
+      ],
+      "malUrl": "https://myanimelist.net/anime/59741",
+      "anilistUrl": "https://anilist.co/anime/180136"
+    }
+  ]
+};
