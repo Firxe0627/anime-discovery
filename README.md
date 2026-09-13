@@ -7,14 +7,30 @@
 
 ## 在线预览
 
-在线演示：**尚未部署**（初始化这台机器时未检测到 GitHub 登录状态）。
-部署完成后，网址会写在这里：`https://<你的用户名>.github.io/anime-discovery/`
+**<https://firxe0627.github.io/anime-discovery/>**
+
+由 GitHub Pages 发布：每次推送到 `main` 都会自动重新部署（工作流 `.github/workflows/deploy-pages.yml`，
+发布目录 `outputs/anime-discovery`）。仓库地址：<https://github.com/Firxe0627/anime-discovery>
 
 ## 推送到 GitHub 并开启 Pages
 
-初始化时这台机器上没有可用的 GitHub 登录（未安装 `gh` CLI、没有 SSH key、Windows 凭据管理器与
-Git Credential Manager 里都没有 github.com 账号），所以仓库已在本地完成首次提交，
-但**没有**创建远程仓库、也没有推送。登录后按下面任一种方式即可（都在项目根目录执行）：
+已完成的部分：
+
+- 公开仓库 <https://github.com/Firxe0627/anime-discovery>（`main` 分支）
+- Pages **Source = GitHub Actions**，站点地址 <https://firxe0627.github.io/anime-discovery/>
+- 提交身份使用 GitHub 的 noreply 邮箱：`Firxe0627 <215038607+Firxe0627@users.noreply.github.com>`
+
+以后更新站点只需要：
+
+```powershell
+git add -A
+git commit -m "你的改动说明"
+git push
+```
+
+推送后到 **Actions** 里等 “Deploy static site to GitHub Pages” 变绿即可，通常 20 秒内完成。
+
+如果是换一台机器或换账号重新走一遍，命令如下（都在项目根目录执行）：
 
 **方式 A：GitHub CLI（推荐，能顺手开启 Pages）**
 
@@ -35,10 +51,10 @@ git push -u origin main
 # 再打开仓库 Settings → Pages → Build and deployment → Source，选择 GitHub Actions
 ```
 
-推送后工作流 `.github/workflows/deploy-pages.yml` 会把 `outputs/anime-discovery` 发布成静态站，
-默认网址形如 `https://<你的用户名>.github.io/anime-discovery/`，把它填回上面「在线预览」一节即可。
+推送后工作流会把 `outputs/anime-discovery` 发布成静态站，网址形如
+`https://<你的用户名>.github.io/anime-discovery/`。
 
-提交身份目前是占位值，推送前建议改成你自己的：
+提交身份如需修改：
 
 ```powershell
 git config user.name "你的名字"

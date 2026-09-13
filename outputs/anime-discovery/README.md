@@ -13,11 +13,12 @@
 
 ### 在线预览（GitHub Pages）
 
-仓库里已经放好发布流程 `.github/workflows/deploy-pages.yml`，会把本目录（`outputs/anime-discovery`）
-直接发布成静态站点。部署完成后网址填在这里：
-**`https://<你的用户名>.github.io/anime-discovery/`**
+**<https://firxe0627.github.io/anime-discovery/>**
 
-启用方法（首次推送后执行一次即可，两种任选）：
+发布流程是 `.github/workflows/deploy-pages.yml`，它把本目录（`outputs/anime-discovery`）直接发布成静态站点，
+每次推送到 `main` 自动重新部署。仓库：<https://github.com/Firxe0627/anime-discovery>
+
+换账号/换仓库重新部署时，启用方法（执行一次即可，两种任选）：
 
 1. 网页端：仓库 **Settings → Pages → Build and deployment → Source** 选 **GitHub Actions**，
    然后到 **Actions** 里等 “Deploy static site to GitHub Pages” 这次运行变绿。
