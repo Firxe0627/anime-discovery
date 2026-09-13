@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>番组发现 AnimeDiscovery · 动漫发现与追番记录</title>
+<meta name="description" content="纯信息展示的动漫发现站：浏览番剧资料、按分类筛选、记录自己的追番进度。本站不提供任何在线播放。">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🌸</text></svg>">
+</head>
+<body data-page="home">
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">◈</span>番组发现
+      <span class="brand-sub">Anime Discovery</span>
+    </a>
+    <nav class="site-nav" aria-label="主导航">
+      <a href="index.html" data-nav="home">首页</a>
+      <a href="mylist.html" data-nav="mylist">我的追番<span class="mylist-badge" data-fav-count style="display:none">0</span></a>
+      <a href="about.html" data-nav="about">关于</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <p class="eyebrow">Anime Discovery</p>
+    <h1>发现下一部想看的<span>动画</span></h1>
+    <p>
+      这里只做番剧资料整理与个人追番记录：分类浏览、搜索、收藏、追番进度都保存在你自己的浏览器里。
+      本站不提供在线播放，也不会嵌入任何未授权视频源；想看正片请前往正版平台。
+    </p>
+
+    <div class="search-row">
+      <div class="search-box" id="searchBox">
+        <span class="icon" aria-hidden="true">🔍</span>
+        <input id="searchInput" type="search" placeholder="搜索番剧名、标签或简介，例如：治愈 / 排球 / 精灵"
+               autocomplete="off" aria-label="搜索番剧">
+        <button class="search-clear" id="searchClear" type="button" aria-label="清除搜索">✕</button>
+      </div>
+      <a class="btn btn-ghost" href="mylist.html">我的追番 →</a>
+    </div>
+
+    <div class="hero-stats">
+      <div><strong id="statTotal">—</strong><span>收录番剧</span></div>
+      <div><strong id="statCats">4</strong><span>分类</span></div>
+      <div><strong id="statFav">0</strong><span>我的收藏</span></div>
+      <div><strong id="statData">—</strong><span>数据来源</span></div>
+    </div>
+  </section>
+
+  <section id="continueSection" hidden>
+    <div class="section-head">
+      <div>
+        <h2>继续观看</h2>
+        <p class="faint">按你标记过的观看进度排列</p>
+      </div>
+      <a class="btn btn-sm btn-ghost" href="mylist.html">全部进度</a>
+    </div>
+    <div class="mylist-grid" id="continueGrid"></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="chips" id="categoryChips" role="group" aria-label="分类筛选"></div>
+    <div class="select-wrap">
+      <span id="resultCount">—</span>
+      <label for="sortSelect" class="faint">排序</label>
+      <select id="sortSelect">
+        <option value="rating">评分最高</option>
+        <option value="year-desc">年份（新→旧）</option>
+        <option value="year-asc">年份（旧→新）</option>
+        <option value="title">标题顺序</option>
+        <option value="episodes">集数最多</option>
+      </select>
+    </div>
+  </div>
+
+  <h2 class="section-head" style="margin:0 0 12px">推荐海报墙</h2>
+  <div class="poster-grid" id="posterGrid" aria-live="polite"></div>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© <span data-year>2026</span> 番组发现 · 仅作信息展示与个人追番记录的演示站点</span>
+    <span><a href="about.html">免责声明</a> · <a href="mylist.html">我的追番</a></span>
+  </div>
+</footer>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/home.js"></script>
+</body>
+</html>

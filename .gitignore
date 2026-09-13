@@ -1,0 +1,30 @@
+# ---- 密钥 / 凭据：绝对不要提交 ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+credentials.json
+.git-credentials
+gh-token.txt
+
+# ---- 依赖与构建产物 ----
+node_modules/
+dist/
+build/
+*.log
+
+# ---- 编辑器 / 系统文件 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 临时文件（work/plan.md 会提交，临时产物忽略）----
+work/tmp/
+*.tmp
+~$*
