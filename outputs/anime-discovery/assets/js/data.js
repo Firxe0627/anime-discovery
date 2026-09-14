@@ -96,7 +96,12 @@
 
   function fetchJson(url) {
     if (isFileProtocol || typeof global.fetch !== 'function') { return Promise.resolve(null); }
-    return global.fetch(url, { cache: 'no-cache' }).then(function (res) {
+    var options = { cache: 'no-cache' };
+    // 网络不稳时 fetch 可能长时间挂起：超时后直接改用同内容的 .js 兜底，避免页面停在骨架屏
+    var timeout = (typeof global.AbortSignal !== 'undefined' && global.AbortSignal.timeout)
+      ? global.AbortSignal.timeout(9000) : null;
+    if (timeout) { options.signal = timeout; }
+    return global.fetch(url, options).then(function (res) {
       if (!res.ok) { return null; }
       return res.json().catch(function () { return null; });
     }).catch(function () { return null; });
