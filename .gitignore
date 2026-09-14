@@ -27,5 +27,7 @@ desktop.ini
 # ---- 临时文件（work/plan.md 会提交，临时产物忽略）----
 work/tmp/
 work/api-cache/
+# 用户自行提供的原始数据集（可能很大，且可能包含无关字段），一律不提交
+work/datasets/
 *.tmp
 ~$*

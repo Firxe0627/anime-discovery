@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>我的追番 · 番组发现 AnimeDiscovery</title>
-<meta name="description" content="本地追番管理：收藏列表、观看进度、最近浏览，全部保存在浏览器本地。">
+<meta name="description" content="本地追番管理：想看 / 在看 / 看完 / 弃番、按集进度、继续看、猜你也想看、导出与导入 JSON、分享码，全部只保存在浏览器本地。">
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🌸</text></svg>">
 </head>
@@ -27,18 +27,20 @@
 <main class="wrap">
   <p class="eyebrow">My List</p>
   <h1>我的追番</h1>
-  <p class="muted" style="max-width:70ch">
-    收藏与观看进度保存在浏览器的 localStorage 中，只属于这台设备的这个浏览器，不会上传。
-    清除浏览器数据会一并清空。
+  <p class="muted" style="max-width:74ch">
+    收藏、进度与状态都保存在浏览器的 localStorage（键名 <code>anime-tracker:v1</code>），只属于这台设备的这个浏览器，
+    不会上传到任何服务器。清除浏览器数据会一并清空，建议用下面的「导出记录」备份。
   </p>
 
   <p id="storageNotice" class="notice" hidden style="margin-top:16px"></p>
 
-  <div class="stat-row">
+  <div class="stat-row stat-row-6">
     <div class="stat"><strong id="statFav">0</strong><span>收藏番剧</span></div>
+    <div class="stat"><strong id="statPlanned">0</strong><span>想看</span></div>
     <div class="stat"><strong id="statWatching">0</strong><span>在看</span></div>
     <div class="stat"><strong id="statCompleted">0</strong><span>看完</span></div>
-    <div class="stat"><strong id="statPlanned">0</strong><span>计划看</span></div>
+    <div class="stat"><strong id="statDropped">0</strong><span>弃番</span></div>
+    <div class="stat"><strong id="statEpisodes">0</strong><span>累计看过集数</span></div>
   </div>
 
   <div class="toolbar" style="margin-top:8px">
@@ -48,8 +50,8 @@
   <section id="continueSection" hidden>
     <div class="section-head">
       <div>
-        <h2>继续观看</h2>
-        <p class="faint">最近有更新进度的番剧</p>
+        <h2>继续看</h2>
+        <p class="faint">只看「在看」状态的作品，按最近观看时间排序</p>
       </div>
     </div>
     <div class="mylist-grid" id="continueGrid"></div>
@@ -58,30 +60,54 @@
   <div class="section-head">
     <div>
       <h2>收藏列表</h2>
-      <p class="faint">点击卡片进入详情页勾选集数；状态可在详情页或条目上直接切换</p>
-    </div>
-    <div class="chips">
-      <button class="btn btn-sm" id="exportBtn" type="button">导出记录</button>
-      <button class="btn btn-sm btn-danger" id="clearAllBtn" type="button">清空全部数据</button>
+      <p class="faint">点卡片进详情勾选集数；状态可在卡片或详情页直接切换</p>
     </div>
   </div>
   <div class="poster-grid" id="favoriteGrid"></div>
+
+  <section id="recommendSection" hidden>
+    <div class="section-head">
+      <div>
+        <h2>猜你也想看</h2>
+        <p class="faint">根据你已收藏作品的分类、类型标签与制作公司加权推荐，纯本地计算</p>
+      </div>
+    </div>
+    <div class="poster-grid" id="recommendGrid"></div>
+  </section>
+
+  <section class="card" style="margin-top:30px">
+    <h2>数据管理</h2>
+    <p class="faint" style="margin-top:0">
+      导出 / 导入都是本地文件操作；分享码是一段文本，朋友粘贴后可以导入你的收藏与进度。
+      导入只会合并，不会清空已有记录。
+    </p>
+    <div class="chip-row">
+      <button class="btn btn-sm" id="exportBtn" type="button">导出记录 JSON</button>
+      <label class="btn btn-sm" for="importInput">导入记录 JSON</label>
+      <input id="importInput" type="file" accept="application/json,.json" hidden>
+      <button class="btn btn-sm" id="shareBtn" type="button">复制分享码</button>
+      <button class="btn btn-sm" id="importShareBtn" type="button">从分享码导入</button>
+      <button class="btn btn-sm btn-danger" id="clearAllBtn" type="button">清空全部数据</button>
+    </div>
+    <textarea id="shareArea" class="share-area" rows="3"
+      placeholder="分享码会显示在这里；也可以把别人发来的分享码（以 AD1. 开头）粘贴到这里，再点「从分享码导入」"></textarea>
+    <p class="data-message" id="dataMessage" hidden></p>
+  </section>
 
   <section id="recentSection" hidden>
     <div class="section-head">
       <div>
         <h2>最近浏览</h2>
-        <p class="faint">最多保留 8 条</p>
+        <p class="faint">最多保留 12 条</p>
       </div>
     </div>
     <div class="mylist-grid" id="recentGrid"></div>
   </section>
-
 </main>
 
 <footer class="site-footer">
   <div class="wrap footer-inner">
-    <span>© <span data-year>2026</span> 番组发现 · 仅作信息展示与个人追番记录的演示站点</span>
+    <span>© <span data-year>2026</span> 番组发现 · 资料来自 AniList 与 Bangumi，仅作信息展示</span>
     <span><a href="about.html">免责声明</a> · <a href="index.html">首页</a></span>
   </div>
 </footer>

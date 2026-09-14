@@ -2,183 +2,77 @@
 /**
  * work/fetch-anime-data.mjs
  * ---------------------------------------------------------------------------
- * 一次性数据抓取脚本：为 AnimeDiscovery 静态站生成番剧元数据。
+ * 为 AnimeDiscovery 生成静态数据（一次性脚本，可反复重跑）。
  *
- * 数据来源：优先 Jikan（MyAnimeList 的公开 API）https://api.jikan.moe/v4
- *           失败时回退 AniList GraphQL https://graphql.anilist.co
+ * 数据来源
+ *   - 主资料来源：AniList GraphQL（批量分页，含封面 URL、简介、分数、集数、
+ *     年份、季节、制作公司、relations、官方 YouTube trailer id）
+ *   - 中文名 / 中文简介：Bangumi（api.bgm.tv，带文档要求的 User-Agent，间隔 ≥1 秒）
+ *   - 可选回退：Jikan（api.jikan.moe）。仅在需要补齐 MAL id 时使用，失败直接跳过。
  *
- * 重要约束（与站点定位一致）：
- *   - 只抓取**文本元数据**与**图片 URL**，绝不下载任何图片/视频文件到仓库。
- *   - 请求间隔 >= 1 秒；遇到 429 / 5xx 会退避重试。
- *   - 匹配不上的条目保留占位（source: "placeholder"），简介留空，不编造内容。
+ * 硬性约束
+ *   - 只保存文本与图片 URL；**绝不下载图片、视频**（trailer 只存 YouTube 视频 id）。
+ *   - 请求间隔 ≥ 1 秒；429/5xx 按 Retry-After 或指数退避重试。
+ *   - 中文名/中文简介一律来自 Bangumi，匹配不上就留空（前端显示原名/英文简介），不做机翻。
+ *   - 抓取失败时保留旧 JSON，不写坏数据。
  *
- * 用法：
- *   node work/fetch-anime-data.mjs            # 使用 work/api-cache 缓存（默认）
- *   node work/fetch-anime-data.mjs --no-cache # 忽略缓存，重新请求 API
- *   node work/fetch-anime-data.mjs --only=trending
- *   node work/fetch-anime-data.mjs --only=anime
+ * 用法
+ *   node work/fetch-anime-data.mjs                    # 目标 520 部，走缓存
+ *   node work/fetch-anime-data.mjs --limit=450        # 指定目标条数
+ *   node work/fetch-anime-data.mjs --no-cache         # 忽略缓存重新请求
+ *   node work/fetch-anime-data.mjs --skip-bangumi     # 只跑 AniList
+ *   node work/fetch-anime-data.mjs --only=trending    # 只更新热门列表
  *
- * 产物：
- *   outputs/anime-discovery/data/anime.json      + anime.js（file:// 兜底）
- *   outputs/anime-discovery/data/trending.json   + trending.js
- *   work/fetch-report.md                         本次抓取报告
+ * 产物
+ *   outputs/anime-discovery/data/anime.json + anime.js
+ *   outputs/anime-discovery/data/trending.json + trending.js
+ *   work/fetch-report.md
  * ---------------------------------------------------------------------------
  */
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const SITE_DIR = path.join(PROJECT_ROOT, 'outputs', 'anime-discovery');
-const DATA_DIR = path.join(SITE_DIR, 'data');
+const DATA_DIR = path.join(PROJECT_ROOT, 'outputs', 'anime-discovery', 'data');
 const CACHE_DIR = path.join(__dirname, 'api-cache');
+const REPORT_PATH = path.join(__dirname, 'fetch-report.md');
 
-const MIN_INTERVAL_MS = 1100;   // 请求间隔下限（要求至少 1 秒）
-const MAX_ATTEMPTS = 4;         // 429 / 5xx 重试次数
-const FETCH_TIMEOUT_MS = 20000; // 单次请求超时，避免网络异常时长时间挂起
-const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 缓存 7 天
+/* Bangumi 要求带可识别的 User-Agent */
+const UA = 'AnimeDiscovery/1.0 (+https://github.com/Firxe0627/anime-discovery)';
+
+const MIN_INTERVAL_MS = 1100;
+const MAX_ATTEMPTS = 4;
+const FETCH_TIMEOUT_MS = 25000;
+const CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const FAIL_CACHE_TTL_MS = 10 * 60 * 1000;
+
+/* 主库筛选规则：TV / Movie / ONA，2005 年以后 */
+const FORMATS = ['TV', 'MOVIE', 'ONA'];
+const MIN_YEAR = 2005;
 
 const argv = process.argv.slice(2);
+const argOf = (name) => {
+  const hit = argv.find((a) => a.startsWith(name + '='));
+  return hit ? hit.split('=')[1] : null;
+};
+const TARGET = Math.max(50, Number(argOf('--limit')) || 520);
+const ONLY = argOf('--only') || 'all';
 const USE_CACHE = !argv.includes('--no-cache');
-const ONLY = (argv.find((a) => a.startsWith('--only=')) || '').split('=')[1] || 'all';
+const SKIP_BANGUMI = argv.includes('--skip-bangumi');
+const ANIME_FILE = path.join(DATA_DIR, 'anime.json');
+const MIN_HEALTHY_ENTRIES = 300;
 
-const SEASON_ZH = { winter: '冬季', spring: '春季', summer: '夏季', fall: '秋季' };
-const FALLBACK_PALETTES = [
-  ['#2f3a6b', '#7a2f52'], ['#1f5c58', '#3a3068'], ['#4a3a6b', '#a2415f'],
-  ['#134a72', '#2f7a5a'], ['#5d2f78', '#c2417a'], ['#6b4a24', '#2f3f5c'],
-  ['#2b2a5e', '#5a2350'], ['#24406b', '#6b3050'], ['#1f4c5c', '#54306b'],
-  ['#3a4a24', '#2b3f6b']
-];
-
-/* ------------------------------------------------------------------ 片单 */
-/* titleZh 为中文常用名（人工整理，非 API 生成）；summaryZh 仅对最早收录的 12 部
-   保留本站编辑整理的中文速览，其余全部以 API 返回的简介为准。            */
-const ENTRIES = [
-  // ---- 热血 ----
-  { id: 'aot', titleZh: '进击的巨人', query: 'Shingeki no Kyojin', expect: 'shingeki no kyojin|attack on titan', malId: 16498,
-    categories: ['热血', '奇幻'], emoji: '🛡️', palette: ['#7a2f4a', '#1c2b52'],
-    summaryZh: '人类在高墙之内生活了百年，墙外的巨人让墙内世界时刻笼罩在恐惧中。当高墙被突破，少年艾伦与伙伴们被卷入一场关乎人类存亡的战斗。' },
-  { id: 'demon-slayer', titleZh: '鬼灭之刃', query: 'Kimetsu no Yaiba', expect: 'kimetsu no yaiba|demon slayer', malId: 38000,
-    categories: ['热血', '奇幻'], emoji: '⚔️', palette: ['#1f6b6a', '#3c1e4d'],
-    summaryZh: '为了让变成鬼的妹妹恢复人身，少年踏上斩鬼之路，在旅途中结识同伴，也逐渐逼近悲剧的源头。' },
-  { id: 'jujutsu-kaisen', titleZh: '咒术回战', query: 'Jujutsu Kaisen', expect: 'jujutsu kaisen', malId: 40748,
-    categories: ['热血', '奇幻'], emoji: '🌀', palette: ['#2b2a5e', '#5a2350'],
-    summaryZh: '少年吞下禁忌之物后被卷入咒术师的世界，为了保护同伴、也为了掌控自身背负的力量而战。' },
-  { id: 'haikyuu', titleZh: '排球少年!!', query: 'Haikyuu!!', expect: 'haikyuu', malId: 20583,
-    categories: ['热血', '日常'], emoji: '🏐', palette: ['#134a72', '#2f7a5a'],
-    summaryZh: '身材矮小却弹跳惊人的少年加入高中排球部，与曾经的对手成为队友，一起向着更高的舞台冲击。' },
-  { id: 'boku-no-hero', titleZh: '我的英雄学院', query: 'Boku no Hero Academia', expect: 'boku no hero academia|my hero academia', malId: 31964,
-    categories: ['热血', '科幻'], emoji: '💥' },
-  { id: 'one-punch-man', titleZh: '一拳超人', query: 'One Punch Man', expect: 'one punch man|one-punch man', malId: 30276,
-    categories: ['热血', '科幻'], emoji: '👊' },
-  { id: 'hunter-x-hunter', titleZh: '全职猎人（2011）', query: 'Hunter x Hunter (2011)', expect: 'hunter', malId: 11061,
-    categories: ['热血', '奇幻'], emoji: '🎣' },
-  { id: 'fmab', titleZh: '钢之炼金术师 FA', query: 'Fullmetal Alchemist: Brotherhood', expect: 'fullmetal alchemist', malId: 5114,
-    categories: ['热血', '奇幻'], emoji: '⚗️' },
-  { id: 'gurren-lagann', titleZh: '天元突破 红莲螺岩', query: 'Tengen Toppa Gurren Lagann', expect: 'gurren lagann|tengen toppa', malId: 2001,
-    categories: ['热血', '科幻'], emoji: '🔩' },
-  { id: 'naruto', titleZh: '火影忍者', query: 'Naruto', expect: 'naruto', malId: 20,
-    categories: ['热血', '奇幻'], emoji: '🍥' },
-  { id: 'one-piece', titleZh: '海贼王', query: 'One Piece', expect: 'one piece', malId: 21,
-    categories: ['热血', '奇幻'], emoji: '🏴‍☠️' },
-
-  // ---- 日常 ----
-  { id: 'bocchi', titleZh: '孤独摇滚!', query: 'Bocchi the Rock!', expect: 'bocchi', malId: 47917,
-    categories: ['日常', '治愈'], emoji: '🎸', palette: ['#5d2f78', '#c2417a'],
-    summaryZh: '极度怕生的少女抱着吉他独自练习多年，意外被拉进乐队后，开始笨拙又真诚地与人建立联系。' },
-  { id: 'yuru-camp', titleZh: '摇曳露营△', query: 'Yuru Camp', expect: 'yuru camp|laid-back camp', malId: 34798,
-    categories: ['日常', '治愈'], emoji: '⛺', palette: ['#1f5c58', '#2b3f6b'],
-    summaryZh: '喜欢独自露营的少女与朋友们在冬日湖畔、山间营地度过安静的时光，简单日常里都是温和的余韵。' },
-  { id: 'spy-family', titleZh: '间谍过家家', query: 'Spy x Family', expect: 'spy', malId: 50265,
-    categories: ['日常', '热血'], emoji: '🕵️', palette: ['#7a3050', '#24406b'],
-    summaryZh: '为完成任务而组建的临时家庭，三个人各自藏着秘密，却在鸡飞狗跳的同居生活里慢慢变成了真正的家人。' },
-  { id: 'hyouka', titleZh: '冰菓', query: 'Hyouka', expect: 'hyouka', malId: 12189,
-    categories: ['日常', '悬疑'], emoji: '🔍', palette: ['#2c3f6e', '#6b3f5c'],
-    summaryZh: '奉行节能主义的高中生被好奇心旺盛的同伴拉入古典部的日常谜题，平静校园里藏着温柔又克制的青春。' },
-  { id: 'k-on', titleZh: '轻音少女', query: 'K-On!', expect: 'k-on', malId: 5680,
-    categories: ['日常', '治愈'], emoji: '🎹' },
-  { id: 'nichijou', titleZh: '日常', query: 'Nichijou', expect: 'nichijou', malId: 10165,
-    categories: ['日常'], emoji: '🐐' },
-  { id: 'nozaki-kun', titleZh: '月刊少女野崎君', query: 'Gekkan Shoujo Nozaki-kun', expect: 'nozaki', malId: 23289,
-    categories: ['日常'], emoji: '✏️' },
-  { id: 'kaguya-sama', titleZh: '辉夜大小姐想让我告白', query: 'Kaguya-sama wa Kokurasetai', expect: 'kaguya', malId: 37999,
-    categories: ['日常'], emoji: '💗' },
-  { id: 'danshi-koukousei', titleZh: '男子高中生的日常', query: 'Danshi Koukousei no Nichijou', expect: 'danshi koukousei|daily lives of high school boys', malId: 11843,
-    categories: ['日常'], emoji: '😂' },
-  { id: 'shirobako', titleZh: '白箱', query: 'Shirobako', expect: 'shirobako', malId: 25835,
-    categories: ['日常'], emoji: '🎬' },
-  { id: 'haruhi', titleZh: '凉宫春日的忧郁', query: 'Suzumiya Haruhi no Yuuutsu', expect: 'suzumiya haruhi|haruhi', malId: 849,
-    categories: ['日常', '科幻'], emoji: '🎒' },
-
-  // ---- 奇幻 ----
-  { id: 'frieren', titleZh: '葬送的芙莉莲', query: 'Sousou no Frieren', expect: 'frieren', malId: 52991,
-    categories: ['奇幻', '治愈'], emoji: '🌿', palette: ['#245a52', '#3a3068'],
-    summaryZh: '勇者一行打倒魔王之后，寿命漫长的精灵魔法使踏上新的旅途，在缓慢流逝的时间里重新认识曾经并肩的伙伴。' },
-  { id: 'dungeon-meshi', titleZh: '迷宫饭', query: 'Dungeon Meshi', expect: 'dungeon meshi|delicious in dungeon', malId: 52701,
-    categories: ['奇幻', '日常'], emoji: '🍲', palette: ['#6b4a24', '#2f3f5c'],
-    summaryZh: '为了救回同伴，冒险者一行决定在迷宫里就地取材，把魔物做成料理，一边下潜一边研究奇幻生态的餐桌。' },
-  { id: 'mushoku-tensei', titleZh: '无职转生', query: 'Mushoku Tensei: Isekai Ittara Honki Dasu', expect: 'mushoku tensei', malId: 39535,
-    categories: ['奇幻', '热血'], emoji: '📖' },
-  { id: 're-zero', titleZh: 'Re:从零开始的异世界生活', query: 'Re:Zero kara Hajimeru Isekai Seikatsu', expect: 're:zero|rezero', malId: 31240,
-    categories: ['奇幻', '悬疑'], emoji: '⏳' },
-  { id: 'konosuba', titleZh: '为美好的世界献上祝福!', query: 'Kono Subarashii Sekai ni Shukufuku wo!', expect: 'kono subarashii|konosuba', malId: 30831,
-    categories: ['奇幻', '日常'], emoji: '🍺' },
-  { id: 'madoka', titleZh: '魔法少女小圆', query: 'Mahou Shoujo Madoka Magica', expect: 'madoka', malId: 9756,
-    categories: ['奇幻', '悬疑'], emoji: '🌙' },
-  { id: 'made-in-abyss', titleZh: '来自深渊', query: 'Made in Abyss', expect: 'made in abyss', malId: 34599,
-    categories: ['奇幻', '热血'], emoji: '🕳️' },
-  { id: 'spice-and-wolf', titleZh: '狼与香辛料', query: 'Ookami to Koushinryou', expect: 'spice and wolf|ookami to koushinryou', malId: 2966,
-    categories: ['奇幻', '日常'], emoji: '🐺' },
-
-  // ---- 治愈 ----
-  { id: 'natsume', titleZh: '夏目友人帐', query: 'Natsume Yuujinchou', expect: 'natsume', malId: 4081,
-    categories: ['治愈', '奇幻'], emoji: '🍃', palette: ['#2e5c46', '#4a3a6b'],
-    summaryZh: '能看见妖怪的少年继承了外婆留下的契约册，与自称保镖的猫咪老师一起，把名字一页页还给妖怪。' },
-  { id: 'violet', titleZh: '紫罗兰永恒花园', query: 'Violet Evergarden', expect: 'violet evergarden', malId: 33352,
-    categories: ['治愈', '奇幻'], emoji: '💌', palette: ['#3a2f70', '#7a3f6b'],
-    summaryZh: '曾作为兵器长大的少女成为代笔人，在替他人书写心意的过程中，一点点学会理解自己的情感。' },
-  { id: 'clannad', titleZh: 'CLANNAD', query: 'CLANNAD', expect: 'clannad', malId: 2167,
-    categories: ['治愈', '日常'], emoji: '🌾' },
-  { id: 'anohana', titleZh: '未闻花名', query: 'Ano Hi Mita Hana no Namae wo Bokutachi wa Mada Shiranai', expect: 'anohana|ano hi mita hana', malId: 9989,
-    categories: ['治愈', '日常'], emoji: '🌼' },
-  { id: 'your-lie-in-april', titleZh: '四月是你的谎言', query: 'Shigatsu wa Kimi no Uso', expect: 'shigatsu wa kimi no uso|your lie in april', malId: 23273,
-    categories: ['治愈', '日常'], emoji: '🎻' },
-
-  // ---- 科幻 / 悬疑 ----
-  { id: 'steins-gate', titleZh: '命运石之门', query: 'Steins;Gate', expect: 'steins;gate|steins gate', malId: 9253,
-    categories: ['科幻', '悬疑'], emoji: '⏱️' },
-  { id: 'death-note', titleZh: '死亡笔记', query: 'Death Note', expect: 'death note', malId: 1535,
-    categories: ['悬疑', '热血'], emoji: '📓' },
-  { id: 'psycho-pass', titleZh: '心理测量者', query: 'Psycho-Pass', expect: 'psycho-pass|psycho pass', malId: 13601,
-    categories: ['科幻', '悬疑'], emoji: '🧠' }
-];
-
-/* --------------------------------------------------------------- 基础工具 */
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lines = [];
 const log = (msg) => { console.log(msg); lines.push(msg); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* ------------------------------------------------------------------ 请求层 */
 
 let lastRequestAt = 0;
-
-/* Jikan 熔断：仍然遵守「优先 Jikan，失败回退 AniList」，但当 Jikan 连续失败
-   （例如当前网络下持续 504）时不再逐条空等，后续条目直接走 AniList。 */
-const JIKAN_TRIP_AFTER = 2;
-let jikanFailures = 0;
-let jikanTripped = false;
-
-function jikanUsable() { return !jikanTripped; }
-
-function noteJikan(ok) {
-  if (ok) { jikanFailures = 0; return; }
-  jikanFailures += 1;
-  if (jikanFailures >= JIKAN_TRIP_AFTER && !jikanTripped) {
-    jikanTripped = true;
-    log('  ⚠ Jikan 连续失败，判定当前网络不可达：后续条目直接使用 AniList 回退源');
-  }
-}
 
 async function throttle() {
   const wait = MIN_INTERVAL_MS - (Date.now() - lastRequestAt);
@@ -186,9 +80,12 @@ async function throttle() {
   lastRequestAt = Date.now();
 }
 
-function cacheFile(key) {
-  return path.join(CACHE_DIR, key.replace(/[^a-z0-9._-]/gi, '_').slice(0, 120) + '.json');
-}
+/** 缓存文件名 = 可读前缀 + key 的哈希，避免日文标题被清洗后互相撞名。 */
+const cacheFile = (key) => {
+  const safe = key.replace(/[^a-z0-9._-]/gi, '_').slice(0, 60);
+  const hash = crypto.createHash('sha1').update(key).digest('hex').slice(0, 10);
+  return path.join(CACHE_DIR, `${safe}-${hash}.json`);
+};
 
 async function readCache(key) {
   if (!USE_CACHE) { return null; }
@@ -196,8 +93,7 @@ async function readCache(key) {
     const stat = await fs.stat(cacheFile(key));
     if (Date.now() - stat.mtimeMs > CACHE_TTL_MS) { return null; }
     const parsed = JSON.parse(await fs.readFile(cacheFile(key), 'utf8'));
-    // 失败缓存只保留 10 分钟，避免刚刚出错的接口被立刻反复重试
-    if (parsed && parsed.__failed && Date.now() - (parsed.at || 0) > 10 * 60 * 1000) { return null; }
+    if (parsed && parsed.__failed && Date.now() - (parsed.at || 0) > FAIL_CACHE_TTL_MS) { return null; }
     return parsed;
   } catch { return null; }
 }
@@ -205,17 +101,14 @@ async function readCache(key) {
 async function writeCache(key, value) {
   if (!USE_CACHE) { return; }
   await fs.mkdir(CACHE_DIR, { recursive: true });
-  await fs.writeFile(cacheFile(key), JSON.stringify(value, null, 2), 'utf8');
+  await fs.writeFile(cacheFile(key), JSON.stringify(value), 'utf8');
 }
 
-/** 带节流与 429/5xx 退避重试的请求；只返回 JSON，不落盘任何二进制。 */
+/** 带节流、超时与 429/5xx 退避重试的请求。只返回 JSON。 */
 async function request(key, url, init) {
   const cached = await readCache(key);
-  if (cached && cached.__failed) {
-    log(`  ↺ 缓存命中（近期请求失败，不再重试） ${key}`);
-    return null;
-  }
-  if (cached) { log(`  ↺ 缓存命中 ${key}`); return cached; }
+  if (cached && cached.__failed) { return null; }
+  if (cached !== null) { return cached; }
 
   let attempt = 0;
   let backoff = 2000;
@@ -226,26 +119,30 @@ async function request(key, url, init) {
     try {
       res = await fetch(url, { ...(init || {}), signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     } catch (err) {
-      log(`  ! 网络错误/超时（第 ${attempt} 次）：${err.message}`);
+      log(`  ! 网络错误（第 ${attempt} 次）：${err.message}`);
       await sleep(backoff); backoff *= 2;
       continue;
     }
 
-    if (res.status === 429 || res.status >= 500) {
+    if (res.status === 429 || res.status === 403 || res.status >= 500) {
       const retryAfter = Number(res.headers.get('retry-after'));
       const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : backoff;
-      log(`  ! HTTP ${res.status}，等待 ${Math.round(waitMs / 1000)}s 后重试（第 ${attempt} 次）`);
-      await sleep(waitMs);
-      backoff *= 2;
+      log(`  ! HTTP ${res.status}，等待 ${Math.round(waitMs / 1000)}s 重试（第 ${attempt} 次）`);
+      await sleep(waitMs); backoff *= 2;
       continue;
     }
 
     if (!res.ok) {
       log(`  ! HTTP ${res.status} ${res.statusText} → ${url}`);
+      await writeCache(key, { __failed: true, at: Date.now(), url, status: res.status });
       return null;
     }
 
-    const json = await res.json();
+    const json = await res.json().catch(() => null);
+    if (json === null) {
+      await writeCache(key, { __failed: true, at: Date.now(), url, status: res.status });
+      return null;
+    }
     await writeCache(key, json);
     return json;
   }
@@ -254,388 +151,501 @@ async function request(key, url, init) {
   return null;
 }
 
-/* --------------------------------------------------------------- Jikan API */
-
-const JIKAN = 'https://api.jikan.moe/v4';
-
-function fromJikan(d) {
-  const images = d.images || {};
-  const jpg = images.jpg || {};
-  const webp = images.webp || {};
-  return {
-    title: d.title || null,
-    titleJa: d.title_japanese || null,
-    titleEn: d.title_english || null,
-    cover: jpg.large_image_url || jpg.image_url || webp.large_image_url || webp.image_url || null,
-    coverSmall: jpg.small_image_url || webp.small_image_url || jpg.image_url || null,
-    synopsis: d.synopsis ? d.synopsis.trim() : null,
-    score: typeof d.score === 'number' ? d.score : null,
-    scoredBy: d.scored_by || null,
-    rank: d.rank || null,
-    episodes: d.episodes || null,
-    duration: d.duration || null,
-    year: d.year || (d.aired && d.aired.prop && d.aired.prop.from && d.aired.prop.from.year) || null,
-    season: d.season || null,
-    status: d.status || null,
-    rating: d.rating || null,
-    genres: (d.genres || []).map((g) => g.name),
-    themes: (d.themes || []).map((g) => g.name),
-    demographics: (d.demographics || []).map((g) => g.name),
-    studios: (d.studios || []).map((s) => s.name),
-    malId: d.mal_id || null,
-    malUrl: d.url || null,
-    anilistId: null,
-    anilistUrl: null,
-    source: 'jikan'
-  };
-}
-
-async function jikanById(malId) {
-  if (!jikanUsable()) { return null; }
-  const json = await request(`jikan-anime-${malId}`, `${JIKAN}/anime/${malId}?sfw`);
-  const data = json && json.data ? fromJikan(json.data) : null;
-  noteJikan(!!json);
-  return data;
-}
-
-async function jikanSearch(query) {
-  if (!jikanUsable()) { return null; }
-  const json = await request(`jikan-search-${query}`, `${JIKAN}/anime?q=${encodeURIComponent(query)}&limit=3&sfw`);
-  noteJikan(!!json);
-  const list = json && Array.isArray(json.data) ? json.data : [];
-  if (!list.length) { return null; }
-  return fromJikan(list[0]);
-}
-
-async function jikanSeasonNow(limit) {
-  if (!jikanUsable()) { return null; }
-  const json = await request(`jikan-season-now-${limit}`, `${JIKAN}/seasons/now?limit=${limit}&sfw`);
-  noteJikan(!!json);
-  return json && Array.isArray(json.data) ? json.data.map(fromJikan) : null;
-}
-
-async function jikanTopAiring(limit) {
-  if (!jikanUsable()) { return null; }
-  const json = await request(`jikan-top-airing-${limit}`, `${JIKAN}/top/anime?filter=airing&limit=${limit}&sfw`);
-  noteJikan(!!json);
-  return json && Array.isArray(json.data) ? json.data.map(fromJikan) : null;
-}
-
-/* ------------------------------------------------------------- AniList API */
+/* ---------------------------------------------------------------- AniList */
 
 const ANILIST = 'https://graphql.anilist.co';
-const ANILIST_QUERY = `
-query ($search: String, $idMal: Int) {
-  Media(search: $search, idMal: $idMal, type: ANIME) {
-    id idMal
-    title { romaji english native }
-    coverImage { extraLarge large medium }
-    description(asHtml: false)
-    averageScore popularity
-    episodes duration
-    season seasonYear
-    status(version: 2)
-    genres
-    studios(isMain: true) { nodes { name } }
-    siteUrl
-  }
-}`;
 
-const ANILIST_STATUS_ZH = {
-  FINISHED: 'Finished Airing',
-  RELEASING: 'Currently Airing',
-  NOT_YET_RELEASED: 'Not yet aired',
-  CANCELLED: 'Cancelled',
-  HIATUS: 'On Hiatus'
-};
-
-/** AniList 的「近期热门连载」——当 Jikan 的 seasons/now 与 top/anime 都不可用时的回退。 */
-const ANILIST_TRENDING_QUERY = `
-query ($limit: Int) {
-  Page(page: 1, perPage: $limit) {
-    media(sort: TRENDING_DESC, type: ANIME, status: RELEASING, isAdult: false) {
-      id idMal
-      title { romaji english native }
-      coverImage { extraLarge large medium }
-      description(asHtml: false)
-      averageScore popularity
-      episodes duration
-      season seasonYear
-      status(version: 2)
-      genres
-      studios(isMain: true) { nodes { name } }
-      siteUrl
+const MEDIA_FIELDS = `
+  id idMal
+  title { romaji english native }
+  coverImage { extraLarge large medium }
+  description(asHtml: false)
+  averageScore meanScore popularity favourites
+  episodes duration season seasonYear format status
+  genres
+  studios(isMain: true) { nodes { name } }
+  trailer { id site }
+  relations {
+    edges {
+      relationType
+      node { id format type seasonYear title { romaji native } }
     }
   }
+`;
+
+const BULK_QUERY = `query ($page: Int, $perPage: Int) {
+  Page(page: $page, perPage: $perPage) {
+    pageInfo { currentPage lastPage hasNextPage }
+    media(sort: POPULARITY_DESC, type: ANIME, format_in: [TV, MOVIE, ONA],
+          startDate_greater: 20050101, isAdult: false) { ${MEDIA_FIELDS} }
+  }
 }`;
 
-async function anilistTrending(limit) {
-  const json = await request(`anilist-trending-${limit}`, ANILIST, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ query: ANILIST_TRENDING_QUERY, variables: { limit } })
-  });
-  const media = json && json.data && json.data.Page ? json.data.Page.media : null;
-  if (!Array.isArray(media)) { return null; }
-  return media.map(fromAniList).filter(Boolean);
-}
+const TRENDING_QUERY = `query ($perPage: Int) {
+  Page(page: 1, perPage: $perPage) {
+    media(sort: TRENDING_DESC, type: ANIME, status: RELEASING, isAdult: false) { ${MEDIA_FIELDS} }
+  }
+}`;
 
-function fromAniList(m) {
-  if (!m) { return null; }
-  return {
-    title: m.title && (m.title.romaji || m.title.english) ? (m.title.romaji || m.title.english) : null,
-    titleJa: m.title ? m.title.native : null,
-    titleEn: m.title ? m.title.english : null,
-    cover: m.coverImage ? (m.coverImage.extraLarge || m.coverImage.large || m.coverImage.medium) : null,
-    coverSmall: m.coverImage ? (m.coverImage.medium || m.coverImage.large) : null,
-    synopsis: m.description ? String(m.description).replace(/<[^>]+>/g, '').trim() : null,
-    score: typeof m.averageScore === 'number' ? Math.round((m.averageScore / 10) * 100) / 100 : null,
-    scoredBy: m.popularity || null,
-    rank: null,
-    episodes: m.episodes || null,
-    duration: m.duration ? `${m.duration} min per ep` : null,
-    year: m.seasonYear || null,
-    season: m.season ? String(m.season).toLowerCase() : null,
-    status: m.status ? (ANILIST_STATUS_ZH[m.status] || m.status) : null,
-    rating: null,
-    genres: m.genres || [],
-    themes: [],
-    demographics: [],
-    studios: m.studios && m.studios.nodes ? m.studios.nodes.map((n) => n.name) : [],
-    malId: m.idMal || null,
-    malUrl: m.idMal ? `https://myanimelist.net/anime/${m.idMal}` : null,
-    anilistId: m.id || null,
-    anilistUrl: m.siteUrl || null,
-    source: 'anilist'
-  };
-}
-
-async function anilistFetch(variables, key) {
+async function anilist(query, variables, key) {
   const json = await request(key, ANILIST, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ query: ANILIST_QUERY, variables })
+    body: JSON.stringify({ query, variables })
   });
-  return json && json.data ? fromAniList(json.data.Media) : null;
-}
-
-/* ---------------------------------------------------------------- 匹配逻辑 */
-
-function titlesOf(d) {
-  return [d.title, d.titleEn, d.titleJa].filter(Boolean).join(' | ').toLowerCase();
-}
-
-function matches(d, expect) {
-  if (!d) { return false; }
-  if (!expect) { return true; }
-  const haystack = titlesOf(d);
-  return new RegExp(expect, 'i').test(haystack);
-}
-
-function hashPalette(seed) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i += 1) { h = (h * 31 + seed.charCodeAt(i)) % 100000; }
-  return FALLBACK_PALETTES[h % FALLBACK_PALETTES.length];
-}
-
-async function resolveEntry(entry) {
-  log(`• ${entry.titleZh} (${entry.id})  query="${entry.query}"`);
-
-  // 1) Jikan：已知 malId 直接取，否则搜索
-  let data = entry.malId ? await jikanById(entry.malId) : null;
-  if (!data) { data = await jikanSearch(entry.query); }
-  if (data && !matches(data, entry.expect)) {
-    log(`  ! Jikan 结果与预期不符：${data.title}`);
-    data = null;
+  if (!json || json.errors) {
+    if (json && json.errors) { log(`  ! AniList 报错：${JSON.stringify(json.errors[0]).slice(0, 160)}`); }
+    return null;
   }
+  return json.data;
+}
 
-  // 2) 回退 AniList
-  if (!data) {
-    log('  → 回退 AniList');
-    data = entry.malId
-      ? await anilistFetch({ idMal: entry.malId }, `anilist-idmal-${entry.malId}`)
-      : null;
-    if (!data) { data = await anilistFetch({ search: entry.query }, `anilist-search-${entry.query}`); }
-    if (data && !matches(data, entry.expect)) {
-      log(`  ! AniList 结果与预期不符：${data.title}`);
-      data = null;
+async function fetchBulkMedia(perPage) {
+  const all = [];
+  let page = 1;
+  let lastPage = 1;
+  do {
+    const data = await anilist(BULK_QUERY, { page, perPage }, `anilist-bulk-${page}-${perPage}`);
+    if (!data || !data.Page) { log(`  ! 第 ${page} 页失败，停止翻页`); break; }
+    const media = data.Page.media || [];
+    all.push(...media);
+    lastPage = data.Page.pageInfo?.lastPage || page;
+    log(`  · 第 ${page}/${lastPage} 页：累计 ${all.length} 条`);
+    page += 1;
+    // 多抓一些余量，后面按年份/格式过滤或去重会掉一部分
+  } while (all.length < TARGET * 1.15 && page <= lastPage && page <= 30);
+  return all;
+}
+
+/* ---------------------------------------------------------------- Bangumi */
+
+const BANGUMI = 'https://api.bgm.tv';
+
+const stripHtml = (s) => String(s || '')
+  .replace(/<br\s*\/?>/gi, '\n')
+  .replace(/<[^>]+>/g, '')
+  .replace(/&nbsp;/g, ' ')
+  .replace(/&amp;/g, '&')
+  .replace(/&quot;/g, '"')
+  .replace(/&#39;/g, "'")
+  .replace(/\s+\n/g, '\n')
+  .trim();
+
+/** 归一化标题用于匹配：只保留拉丁字母、数字与日文/中文字符。 */
+const normalize = (s) => String(s || '')
+  .toLowerCase()
+  .replace(/[^0-9a-z\u3040-\u30ff\u4e00-\u9fff]/g, '');
+
+async function bangumiSearch(keyword) {
+  if (!keyword) { return null; }
+  const json = await request(`bgm-search-${keyword}`, `${BANGUMI}/v0/search/subjects?limit=5`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': UA,
+      Accept: 'application/json'
+    },
+    body: JSON.stringify({ keyword, filter: { type: [2] } })
+  });
+  if (!json || !Array.isArray(json.data)) { return null; }
+  return json.data;
+}
+
+/**
+ * 匹配 Bangumi 条目：优先精确同名（日文原名 / 罗马字 / 英文名），
+ * 其次唯一候选且年份相差 ≤1。匹配不上就返回 null（不做任何猜测）。
+ */
+function pickBangumi(candidates, media) {
+  if (!candidates || !candidates.length) { return null; }
+  const titles = [media.title?.native, media.title?.romaji, media.title?.english]
+    .filter(Boolean).map(normalize);
+  let best = null;
+  for (const c of candidates) {
+    const names = [c.name, c.name_cn].filter(Boolean).map(normalize);
+    const exact = names.some((n) => titles.includes(n));
+    const yearOk = !c.date || !media.seasonYear
+      || Math.abs(Number(String(c.date).slice(0, 4)) - media.seasonYear) <= 1;
+    if (exact && yearOk) { best = c; break; }
+    if (!best && exact) { best = c; }
+  }
+  if (best) { return best; }
+  if (candidates.length === 1) {
+    const c = candidates[0];
+    const year = Number(String(c.date || '').slice(0, 4));
+    if (!year || !media.seasonYear || Math.abs(year - media.seasonYear) <= 1) { return c; }
+  }
+  return null;
+}
+
+/* -------------------------------------------------------------- 类型映射 */
+
+const CATEGORY_RULES = [
+  [/action|adventure|martial arts|super power|sports|mecha/i, '热血'],
+  [/slice of life|comedy|music|school|performing arts/i, '日常'],
+  [/fantasy|supernatural|magic|isekai|adventure|demons/i, '奇幻'],
+  [/drama|romance|iyashikei|healing/i, '治愈'],
+  [/sci-?fi|space|mecha|virtual reality|cyberpunk/i, '科幻'],
+  [/mystery|thriller|suspense|horror|psychological|crime/i, '悬疑']
+];
+
+function categoriesOf(genres) {
+  const out = [];
+  CATEGORY_RULES.forEach(([re, name]) => {
+    if ((genres || []).some((g) => re.test(g)) && !out.includes(name)) { out.push(name); }
+  });
+  return out.slice(0, 3);
+}
+
+const EMOJI_BY_CATEGORY = { '热血': '🔥', '日常': '☕', '奇幻': '✨', '治愈': '🌿', '科幻': '🛰️', '悬疑': '🔍' };
+const PALETTES = [
+  ['#2f3a6b', '#7a2f52'], ['#1f5c58', '#3a3068'], ['#4a3a6b', '#a2415f'],
+  ['#134a72', '#2f7a5a'], ['#5d2f78', '#c2417a'], ['#6b4a24', '#2f3f5c'],
+  ['#2b2a5e', '#5a2350'], ['#24406b', '#6b3050'], ['#1f4c5c', '#54306b'],
+  ['#3a4a24', '#2b3f6b']
+];
+const hashOf = (s) => {
+  let h = 0;
+  for (let i = 0; i < String(s).length; i += 1) { h = (h * 31 + String(s).charCodeAt(i)) % 100000; }
+  return h;
+};
+
+const slugify = (s) => String(s || '')
+  .toLowerCase()
+  .replace(/['’]/g, '')
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+  .slice(0, 48);
+
+const truncate = (s, max) => {
+  const t = String(s || '').trim();
+  if (!t) { return null; }
+  return t.length <= max ? t : t.slice(0, max).replace(/\s+\S*$/, '') + '…';
+};
+
+/* ------------------------------------------------------------- 记录构造 */
+
+const RELATION_KEEP = new Set([
+  'PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'ALTERNATIVE', 'SPIN_OFF', 'ADAPTATION'
+]);
+const RELATION_ZH = {
+  PREQUEL: '前作', SEQUEL: '续作', PARENT: '正篇', SIDE_STORY: '外传',
+  ALTERNATIVE: '剧场版/替代版本', SPIN_OFF: '衍生', ADAPTATION: '原作'
+};
+
+function relationsOf(media) {
+  const edges = media.relations?.edges || [];
+  const out = [];
+  for (const e of edges) {
+    const n = e.node;
+    if (!n || n.type !== 'ANIME') { continue; }
+    if (!RELATION_KEEP.has(e.relationType)) { continue; }
+    const name = n.title?.native || n.title?.romaji;
+    if (!name) { continue; }
+    out.push({
+      anilistId: n.id,
+      name,
+      relation: e.relationType,
+      relationZh: RELATION_ZH[e.relationType] || e.relationType,
+      format: n.format || null,
+      year: n.seasonYear || null
+    });
+    if (out.length >= 8) { break; }
+  }
+  // 前作/续作优先展示
+  const priority = { PREQUEL: 0, SEQUEL: 0, PARENT: 1, SIDE_STORY: 2, ALTERNATIVE: 3, SPIN_OFF: 4, ADAPTATION: 5 };
+  return out.sort((a, b) => (priority[a.relation] ?? 9) - (priority[b.relation] ?? 9));
+}
+
+function trailerOf(media) {
+  const t = media.trailer;
+  if (!t || t.site !== 'youtube' || !t.id) { return null; }
+  const id = String(t.id).trim();          // AniList 偶尔带空白字符
+  return /^[\w-]{6,20}$/.test(id) ? id : null;
+}
+
+function toRecord(media) {
+  const genres = media.genres || [];
+  const slug = slugify(media.title?.romaji || media.title?.english || '') || 'ani';
+  const year = media.seasonYear || null;
+  const cats = categoriesOf(genres);
+  return {
+    anilistId: media.id,
+    malId: media.idMal || null,
+    bgmId: null,
+    slug,
+    name: media.title?.native || media.title?.romaji || media.title?.english || null,
+    name_cn: null,
+    name_en: media.title?.english || null,
+    name_romaji: media.title?.romaji || null,
+    cover: media.coverImage?.extraLarge || media.coverImage?.large || media.coverImage?.medium || null,
+    coverSmall: media.coverImage?.medium || media.coverImage?.large || null,
+    summary_en: truncate(stripHtml(media.description), 900),
+    summary_cn: null,
+    summary_cn_short: null,
+    score: typeof media.averageScore === 'number' ? Math.round(media.averageScore) / 10 : null,
+    scoredBy: media.popularity || null,
+    genres,
+    categories: cats.length ? cats : ['日常'],
+    episodes: media.episodes || null,
+    year,
+    season: media.season ? String(media.season).toLowerCase() : null,
+    format: media.format || null,
+    status: media.status || null,
+    studios: (media.studios?.nodes || []).map((n) => n.name),
+    relations: relationsOf(media),
+    trailer: trailerOf(media),
+    emoji: EMOJI_BY_CATEGORY[cats[0]] || '✨',
+    palette: PALETTES[hashOf(media.id) % PALETTES.length],
+    has_cn: false
+  };
+}
+
+/* --------------------------------------------------- 与旧数据合并（保中文） */
+
+async function loadCurated() {
+  try {
+    const raw = JSON.parse(await fs.readFile(ANIME_FILE, 'utf8'));
+    const byAniId = new Map();
+    const byMalId = new Map();
+    for (const item of raw) {
+      if (item.anilistId) { byAniId.set(item.anilistId, item); }
+      if (item.malId) { byMalId.set(item.malId, item); }
+    }
+    log(`读取旧数据 ${raw.length} 条，用于保留中文名/编辑速览/配色`);
+    return { byAniId, byMalId, raw };
+  } catch {
+    log('没有可读的旧 anime.json（首次运行）');
+    return { byAniId: new Map(), byMalId: new Map(), raw: [] };
+  }
+}
+
+function mergeCurated(rec, curated) {
+  const old = curated.byAniId.get(rec.anilistId)
+    || (rec.malId ? curated.byMalId.get(rec.malId) : null);
+  if (!old) { return rec; }
+  return {
+    ...rec,
+    slug: old.id || rec.slug,
+    name_cn: old.titleZh || old.name_cn || null,
+    summary_cn_short: old.summaryZh || old.summary_cn_short || null,
+    emoji: old.emoji || rec.emoji,
+    palette: old.palette || rec.palette,
+    categories: old.categories?.length ? old.categories : rec.categories
+  };
+}
+
+/* ------------------------------------------------------------------ 主流程 */
+
+function asJson(value) { return JSON.stringify(value) + '\n'; }   // 压缩输出，减小仓库体积
+function asJs(globalName, value) {
+  return '/* 由 work/fetch-anime-data.mjs 生成，供 file:// 打开时兜底，请勿手改。 */\n'
+    + `window.${globalName} = ${JSON.stringify(value)};\n`;
+}
+
+async function enrichWithBangumi(entries) {
+  if (SKIP_BANGUMI) {
+    log('\n== 跳过 Bangumi（--skip-bangumi）==');
+    return;
+  }
+  log('\n== Bangumi 补中文名 / 中文简介（间隔 ≥1s）==');
+  let matched = 0;
+  let done = 0;
+  for (const rec of entries) {
+    done += 1;
+    const keyword = rec.name || rec.name_romaji || rec.name_en;
+    const candidates = await bangumiSearch(keyword);
+    const hit = pickBangumi(candidates, {
+      title: { native: rec.name, romaji: rec.name_romaji, english: rec.name_en },
+      seasonYear: rec.year
+    });
+    if (hit) {
+      rec.bgmId = hit.id;
+      rec.name_cn = rec.name_cn || (hit.name_cn ? hit.name_cn.trim() : null);
+      rec.summary_cn = truncate(stripHtml(hit.summary), 700);
+      rec.has_cn = !!(rec.name_cn || rec.summary_cn);
+      matched += 1;
+    }
+    if (done % 25 === 0 || done === entries.length) {
+      log(`  · Bangumi 进度 ${done}/${entries.length}，命中中文 ${matched}`);
     }
   }
+  log(`  ✓ Bangumi 命中 ${matched}/${entries.length}`);
+}
 
-  const base = {
-    id: entry.id,
-    titleZh: entry.titleZh,
-    categories: entry.categories,
-    emoji: entry.emoji || '✨',
-    palette: entry.palette || hashPalette(entry.id),
-    summaryZh: entry.summaryZh || null
-  };
-
-  if (!data) {
-    log('  × 两个数据源都没有匹配结果 → 保留占位（不生成简介）');
-    return {
-      ...base,
-      title: null, titleJa: null, titleEn: null,
-      cover: null, coverSmall: null, synopsis: null,
-      score: null, scoredBy: null, rank: null,
-      episodes: null, duration: null, year: null, season: null,
-      status: null, rating: null,
-      genres: [], themes: [], demographics: [], studios: [],
-      malId: entry.malId || null, malUrl: null, anilistId: null, anilistUrl: null,
-      source: 'placeholder'
-    };
+async function buildLibrary() {
+  log('== 从 AniList 批量拉取（POPULARITY_DESC，TV/Movie/ONA，≥2005）==');
+  const media = await fetchBulkMedia(50);
+  if (!media.length) {
+    throw new Error('AniList 批量接口没有返回任何数据，可能是网络问题；保留旧 JSON。');
   }
 
-  const merged = { ...base, ...data, id: entry.id, titleZh: entry.titleZh, categories: entry.categories,
-    emoji: base.emoji, palette: base.palette, summaryZh: base.summaryZh };
-  log(`  ✓ [${merged.source}] ${merged.title} · 分数 ${merged.score ?? '—'} · ${merged.episodes ?? '—'} 集 · ${merged.year ?? '—'}`);
-  return merged;
-}
-
-/* ------------------------------------------------------ 本季 / 热门 列表 */
-
-function toTrendingItem(d, index) {
-  return {
-    rank: index + 1,
-    malId: d.malId,
-    title: d.title,
-    titleEn: d.titleEn,
-    cover: d.cover,
-    score: d.score,
-    episodes: d.episodes,
-    year: d.year,
-    season: d.season,
-    status: d.status,
-    genres: d.genres,
-    categories: guessCategories(d),
-    malUrl: d.malUrl,
-    anilistUrl: d.anilistUrl
-  };
-}
-
-/** 依据 MAL 类型粗略映射到站点分类（仅用于热播列表的配色标签）。 */
-function guessCategories(d) {
-  const g = [...(d.genres || []), ...(d.themes || [])].map((s) => s.toLowerCase());
-  const cats = [];
-  const has = (k) => g.some((x) => x.includes(k));
-  if (has('action') || has('sports') || has('martial')) { cats.push('热血'); }
-  if (has('fantasy') || has('supernatural') || has('magic') || has('isekai')) { cats.push('奇幻'); }
-  if (has('slice of life') || has('comedy') || has('romance')) { cats.push('日常'); }
-  if (has('drama') || has('healing')) { cats.push('治愈'); }
-  if (has('sci-fi') || has('mecha') || has('space')) { cats.push('科幻'); }
-  if (has('mystery') || has('suspense') || has('thriller') || has('horror')) { cats.push('悬疑'); }
-  return [...new Set(cats)].slice(0, 2);
+  log('\n== 过滤 / 去重 ==');
+  const seenAni = new Set();
+  const seenMal = new Set();
+  const seenTitle = new Set();
+  const records = [];
+  for (const m of media) {
+    if (!m || !m.id || seenAni.has(m.id)) { continue; }
+    if (!FORMATS.includes(m.format)) { continue; }
+    const year = m.seasonYear || m.startDate?.year || 0;
+    if (year && year < MIN_YEAR) { continue; }
+    const key = normalize(m.title?.romaji || m.title?.native || '');
+    if (key && seenTitle.has(key)) { continue; }
+    seenAni.add(m.id);
+    if (m.idMal) { seenMal.add(m.idMal); }
+    if (key) { seenTitle.add(key); }
+    records.push(toRecord(m));
+    if (records.length >= TARGET) { break; }
+  }
+  log(`  ✓ 过滤后 ${records.length} 条（目标 ${TARGET}）`);
+  return records;
 }
 
 async function buildTrending(limit) {
-  if (ONLY === 'anime') { return null; }
-  log('\n== 拉取「本季 / 热门」列表 ==');
-  let items = await jikanSeasonNow(limit);
-  let source = 'jikan:seasons/now';
-  if (!items || !items.length) {
-    log('  ! seasons/now 无数据，改用 top/anime?filter=airing');
-    items = await jikanTopAiring(limit);
-    source = 'jikan:top/anime?filter=airing';
+  log('\n== 拉取「本季 / 热门」（AniList TRENDING_DESC, RELEASING）==');
+  const data = await anilist(TRENDING_QUERY, { perPage: limit }, `anilist-trending-${limit}`);
+  const media = data?.Page?.media || [];
+  if (!media.length) {
+    log('  × 热门列表拉取失败：保留旧 trending.json');
+    return null;
   }
-  if (!items || !items.length) {
-    log('  ! Jikan 不可用，改用 AniList（TRENDING_DESC + RELEASING）');
-    items = await anilistTrending(limit);
-    source = 'anilist:trending(releasing)';
-  }
-  if (!items || !items.length) {
-    log('  × 本季/热门列表拉取失败，将写入空列表（站点会自动隐藏该区块）');
-    return { generatedAt: new Date().toISOString(), source: null, season: null, items: [] };
-  }
-  const season = items[0].season ? `${items[0].year || ''} ${SEASON_ZH[items[0].season] || items[0].season}`.trim() : null;
-  log(`  ✓ ${source} · ${items.length} 条 · ${season || '季节未知'}`);
-  return {
-    generatedAt: new Date().toISOString(),
-    source,
-    season,
-    items: items.map(toTrendingItem)
-  };
-}
-
-/* ------------------------------------------------------------- 输出文件 */
-
-function asJsonFile(value) {
-  return JSON.stringify(value, null, 2) + '\n';
-}
-
-/** file:// 直接双击打开时 fetch 本地 JSON 会被拦，用同名 .js 做兜底。 */
-function asJsFile(globalName, value) {
-  return `/* 由 work/fetch-anime-data.mjs 生成，供 file:// 打开时兜底使用，请勿手改。 */\n` +
-    `window.${globalName} = ${JSON.stringify(value, null, 2)};\n`;
+  log(`  ✓ 拿到 ${media.length} 条`);
+  return media;
 }
 
 async function main() {
   await fs.mkdir(DATA_DIR, { recursive: true });
-  log(`# 番剧数据抓取报告\n`);
+  log('# 番剧数据抓取报告\n');
   log(`- 运行时间：${new Date().toISOString()}`);
-  log(`- 缓存：${USE_CACHE ? '启用 work/api-cache' : '禁用（--no-cache）'}`);
-  log(`- 请求间隔下限：${MIN_INTERVAL_MS}ms，单次超时 ${FETCH_TIMEOUT_MS}ms，429/5xx 最多重试 ${MAX_ATTEMPTS} 次`);
-  log(`- 数据源优先级：Jikan（MAL）→ AniList；Jikan 连续失败 ${JIKAN_TRIP_AFTER} 次后熔断\n`);
-  const results = [];
-  if (ONLY === 'trending') {
-    log('== 跳过番剧元数据抓取（--only=trending）==');
+  log(`- 目标条数：${TARGET}；缓存：${USE_CACHE ? '启用' : '禁用'}；Bangumi：${SKIP_BANGUMI ? '跳过' : '启用'}`);
+  log(`- 请求间隔下限：${MIN_INTERVAL_MS}ms，超时 ${FETCH_TIMEOUT_MS}ms，429/403/5xx 最多重试 ${MAX_ATTEMPTS} 次\n`);
+
+  const curated = await loadCurated();
+
+  let entries = [];
+  if (ONLY !== 'trending') {
+    entries = await buildLibrary();
+    entries = entries.map((r) => mergeCurated(r, curated));
   } else {
-    log('== 逐条抓取番剧元数据 ==');
-    for (const entry of ENTRIES) {
-      results.push(await resolveEntry(entry));
-    }
+    log('== --only=trending：复用现有 anime.json，只更新热门列表 ==');
+    entries = curated.raw || [];
+    if (!entries.length) { throw new Error('没有可复用的 anime.json，无法只更新热门'); }
   }
 
-  if (results.length) {
-    const dupes = {};
-    results.forEach((r) => {
-      if (r.malId) { dupes[r.malId] = (dupes[r.malId] || []).concat(r.id); }
+  // 热门列表：并入主库，保证首页点进去有站内详情页
+  let trendingMedia = [];
+  if (ONLY !== 'anime') { trendingMedia = (await buildTrending(24)) || []; }
+
+  if (trendingMedia.length && entries !== curated.raw) {
+    const known = new Set(entries.map((e) => e.anilistId));
+    const mergedCount = { added: 0, dropped: 0 };
+    for (const m of trendingMedia) {
+      if (known.has(m.id)) { continue; }
+      const year = m.seasonYear || 0;
+      if (!FORMATS.includes(m.format) || (year && year < MIN_YEAR)) { mergedCount.dropped += 1; continue; }
+      const rec = mergeCurated(toRecord(m), curated);
+      rec.trending = true;
+      entries.push(rec);
+      known.add(m.id);
+      mergedCount.added += 1;
+    }
+    log(`\n== 热门条目并入主库：新增 ${mergedCount.added}，因不符合筛选跳过 ${mergedCount.dropped} ==`);
+  }
+
+  if (ONLY !== 'trending') { await enrichWithBangumi(entries); }
+
+  /* --- 统计 --- */
+  const slugSeen = new Map();
+  for (const rec of entries) {
+    const base = rec.slug || 'ani';
+    const n = slugSeen.get(base) || 0;
+    slugSeen.set(base, n + 1);
+    rec.id = n === 0 ? base : `${base}-${rec.anilistId}`;
+  }
+  const withCn = entries.filter((e) => e.name_cn).length;
+  const withCnSummary = entries.filter((e) => e.summary_cn).length;
+  const withTrailer = entries.filter((e) => e.trailer).length;
+  const withRelations = entries.filter((e) => (e.relations || []).length).length;
+  const withBgm = entries.filter((e) => e.bgmId).length;
+  const byFormat = entries.reduce((acc, e) => { acc[e.format] = (acc[e.format] || 0) + 1; return acc; }, {});
+  const years = entries.map((e) => e.year).filter(Boolean).sort();
+
+  log('\n== 汇总 ==');
+  log(`- 主库条数：${entries.length}`);
+  log(`- 有中文名：${withCn}；有中文简介：${withCnSummary}；命中 Bangumi：${withBgm}`);
+  log(`- 有官方 YouTube PV：${withTrailer}`);
+  log(`- 有 relations：${withRelations}`);
+  log(`- 格式分布：${Object.entries(byFormat).map(([k, v]) => `${k} ${v}`).join(' / ')}`);
+  log(`- 年份范围：${years[0] || '—'} – ${years[years.length - 1] || '—'}`)
+
+  if (ONLY !== 'trending') {
+    if (entries.length < MIN_HEALTHY_ENTRIES) {
+      log(`\n⚠ 条数 ${entries.length} < ${MIN_HEALTHY_ENTRIES}，判定为抓取不完整：保留旧 JSON，不写入。`);
+      await fs.writeFile(REPORT_PATH, lines.join('\n') + '\n', 'utf8');
+      process.exitCode = 2;
+      return;
+    }
+    await fs.writeFile(path.join(DATA_DIR, 'anime.json'), asJson(entries), 'utf8');
+    await fs.writeFile(path.join(DATA_DIR, 'anime.js'), asJs('__ANIME_DATA__', entries), 'utf8');
+    log(`\n已写入 data/anime.json（${entries.length} 条）与 data/anime.js`);
+  }
+
+  if (trendingMedia.length) {
+    const byAniId = new Map(entries.map((e) => [e.anilistId, e]));
+    const items = [];
+    trendingMedia.forEach((m, i) => {
+      const local = byAniId.get(m.id);
+      if (!local) { return; }   // 没能进主库的不展示，避免整卡跳外站
+      items.push({
+        rank: items.length + 1,
+        id: local.id,
+        anilistId: m.id,
+        name: local.name_cn || local.name || local.name_romaji,
+        name_original: local.name,
+        name_cn: local.name_cn,
+        cover: local.cover,
+        coverSmall: local.coverSmall,
+        score: local.score,
+        episodes: local.episodes,
+        year: local.year,
+        season: local.season,
+        format: local.format,
+        genres: (local.genres || []).slice(0, 3),
+        categories: local.categories
+      });
     });
-    const dupList = Object.entries(dupes).filter(([, ids]) => ids.length > 1);
-
-    const stats = {
-      total: results.length,
-      jikan: results.filter((r) => r.source === 'jikan').length,
-      anilist: results.filter((r) => r.source === 'anilist').length,
-      placeholder: results.filter((r) => r.source === 'placeholder').length,
-      withCover: results.filter((r) => r.cover).length,
-      withSynopsis: results.filter((r) => r.synopsis).length
+    const trending = {
+      generatedAt: new Date().toISOString(),
+      source: 'anilist:TRENDING_DESC (status: RELEASING)',
+      season: trendingSeasonLabel(trendingMedia),
+      items
     };
-
-    log(`\n== 汇总 ==`);
-    log(`- 条目：${stats.total}（Jikan ${stats.jikan} · AniList ${stats.anilist} · 占位 ${stats.placeholder}）`);
-    log(`- 有封面 URL：${stats.withCover} / ${stats.total}`);
-    log(`- 有简介：${stats.withSynopsis} / ${stats.total}`);
-    if (dupList.length) {
-      log(`- ⚠ 重复的 MAL id：${dupList.map(([id, ids]) => `${id} → ${ids.join(',')}`).join('; ')}`);
+    if (items.length < 10) {
+      log(`⚠ 热门列表只匹配到 ${items.length} 条（<10），保留旧 trending.json 不覆盖`);
+      await fs.writeFile(REPORT_PATH, lines.join('\n') + '\n', 'utf8');
+      return;
     }
-    const placeholders = results.filter((r) => r.source === 'placeholder').map((r) => r.titleZh);
-    if (placeholders.length) { log(`- 占位条目：${placeholders.join('、')}`); }
-
-    await fs.writeFile(path.join(DATA_DIR, 'anime.json'), asJsonFile(results), 'utf8');
-    await fs.writeFile(path.join(DATA_DIR, 'anime.js'), asJsFile('__ANIME_DATA__', results), 'utf8');
-    log(`\n已写入 data/anime.json（${results.length} 条）与 data/anime.js（file:// 兜底）`);
+    await fs.writeFile(path.join(DATA_DIR, 'trending.json'), asJson(trending), 'utf8');
+    await fs.writeFile(path.join(DATA_DIR, 'trending.js'), asJs('__TRENDING_DATA__', trending), 'utf8');
+    log(`已写入 data/trending.json（${items.length} 条，全部可在站内打开详情）`);
   }
 
-  const trending = await buildTrending(18);
-  if (trending) {
-    await fs.writeFile(path.join(DATA_DIR, 'trending.json'), asJsonFile(trending), 'utf8');
-    await fs.writeFile(path.join(DATA_DIR, 'trending.js'), asJsFile('__TRENDING_DATA__', trending), 'utf8');
-    log(`已写入 data/trending.json（${trending.items.length} 条）与 data/trending.js`);
-  }
-
-  const actual = results.length
-    ? `本次番剧元数据实际来源：Jikan ${results.filter((r) => r.source === 'jikan').length} 条、`
-      + `AniList ${results.filter((r) => r.source === 'anilist').length} 条、`
-      + `占位 ${results.filter((r) => r.source === 'placeholder').length} 条。`
-    : '本次只更新了热门列表，未重抓番剧元数据。';
-  log(`\n说明：封面与图片只保存 URL，脚本不会下载任何图片文件；简介、分数、集数等来自 Jikan(MAL)，`
-    + `Jikan 不可用时回退 AniList（AniList 数据标注进站内「关于」页）；无匹配条目保留占位且不编造简介。\n${actual}`);
-
-  await fs.writeFile(path.join(__dirname, 'fetch-report.md'), lines.join('\n') + '\n', 'utf8');
+  log('\n说明：封面与 PV 只保存远程 URL / 官方 YouTube 视频 id，脚本不下载任何图片或视频；'
+    + '中文名与中文简介来自 Bangumi（api.bgm.tv），匹配不上则留空，前端显示原名或英文简介，不做机翻。');
+  await fs.writeFile(REPORT_PATH, lines.join('\n') + '\n', 'utf8');
   console.log('\n报告已写入 work/fetch-report.md');
 }
 
-main().catch((err) => {
-  console.error('抓取失败：', err);
+function trendingSeasonLabel(media) {
+  const m = media.find((x) => x.seasonYear && x.season);
+  if (!m) { return null; }
+  const zh = { WINTER: '冬季', SPRING: '春季', SUMMER: '夏季', FALL: '秋季' }[m.season] || m.season;
+  return `${m.seasonYear} ${zh}`;
+}
+
+main().catch(async (err) => {
+  console.error('抓取失败：', err.message);
+  lines.push(`\n## 运行失败\n\n${err.message}\n\n（旧 JSON 未被覆盖）`);
+  try { await fs.writeFile(REPORT_PATH, lines.join('\n') + '\n', 'utf8'); } catch { /* ignore */ }
   process.exitCode = 1;
 });
