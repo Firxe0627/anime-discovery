@@ -25,9 +25,19 @@
     empty.appendChild(el('h3', null, '没有找到这部番剧'));
     empty.appendChild(el('p', null, '链接里的 id 参数无效，或者资料库里没有这条记录。'));
     var back = el('a', 'btn btn-primary', '回到首页');
-    back.href = 'index.html';
+    back.href = UI.homeUrl();
     empty.appendChild(back);
     root.appendChild(empty);
+  }
+
+  /** 「返回首页」带上当前筛选条件；并标记这次是从详情页回去，方便首页恢复滚动位置 */
+  function bindBackHome() {
+    var href = UI.homeUrl();
+    var link = document.getElementById('backHomeLink');
+    if (link) { link.href = href; }
+    var navHome = document.querySelector('.site-nav a[data-nav="home"]');
+    if (navHome) { navHome.href = href; }
+    try { global.sessionStorage.setItem(D.RETURN_KEY || 'anime-tracker:return', '1'); } catch (e) { /* ignore */ }
   }
 
   /* ------------------------------------------------------------ 进度条 */
@@ -476,6 +486,7 @@
 
   function init() {
     root = document.getElementById('detailRoot');
+    bindBackHome();
     return D.load().then(function (list) {
       allList = list;
       anime = D.find(list, UI.qs('id'));

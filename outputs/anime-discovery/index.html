@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>番组发现 AnimeDiscovery · 动漫发现与追番记录</title>
-<meta name="description" content="纯信息展示的番剧发现站：500+ 部精选番剧资料、本季热门、年份轴与季度表、按分类和制作公司筛选，收藏与追番进度只保存在你自己的浏览器里。资料来自 AniList 与 Bangumi，本站不提供任何在线播放。">
-<link rel="stylesheet" href="assets/css/style.css?v=20260914b">
+<meta name="description" content="纯信息展示的番剧发现站：500+ 部精选番剧资料、本季热门、搜索与分类 / 年份 / 季度 / 制作公司筛选，收藏与追番进度只保存在你自己的浏览器里。资料来自 AniList 与 Bangumi，本站不提供任何在线播放。">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914c">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🌸</text></svg>">
 </head>
 <body data-page="home">
@@ -32,36 +32,24 @@
     <p>
       精选 <strong id="statTotalInline">500+</strong> 部番剧资料：中文名与中文简介来自 Bangumi，
       其余资料与官方 PV 来自 AniList，封面直接引用原站图片 URL。
-      分类、年份、季度、制作公司都能筛；收藏与追番进度只写在你的浏览器里。
-      本站不提供在线播放，也不会嵌入任何未授权视频源。
+      搜索加上分类、年份、季度、制作公司筛选，就能从资料库里挑出下一部要看的。
+      收藏与追番进度只写在你的浏览器里；本站不提供在线播放，也不会嵌入任何未授权视频源。
     </p>
 
-    <div class="search-row">
-      <div class="search-box" id="searchBox">
-        <span class="icon" aria-hidden="true">🔍</span>
-        <input id="searchInput" type="search" autocomplete="off"
-               placeholder="搜索中文名 / 日文原名 / 英文名 / 制作公司（快捷键 /）" aria-label="搜索番剧">
-        <button class="search-clear" id="searchClear" type="button" aria-label="清除搜索">✕</button>
-      </div>
-      <button class="btn btn-primary" id="randomBtn" type="button">🎲 随机一部（R）</button>
+    <div class="hero-actions">
+      <button class="btn btn-primary" id="randomBtn" type="button" aria-keyshortcuts="R"
+              title="在当前筛选结果里随机一部（快捷键 R；搜索框聚焦时不会触发）">🎲 随机一部</button>
       <a class="btn btn-ghost" href="mylist.html">我的追番 →</a>
-    </div>
-
-    <div class="hero-stats">
-      <div><strong id="statTotal">—</strong><span>收录番剧</span></div>
-      <div><strong id="statCn">—</strong><span>有中文名</span></div>
-      <div><strong id="statPv">—</strong><span>有官方 PV</span></div>
-      <div><strong id="statFav">0</strong><span>我的收藏</span></div>
-      <div><strong id="statData">—</strong><span>数据来源</span></div>
     </div>
   </section>
 
   <section id="trendingSection" hidden>
     <div class="section-head">
       <div>
-        <h2>本季 / 热门</h2>
+        <h2>本季热门</h2>
         <p class="faint" id="trendingMeta">—</p>
       </div>
+      <button class="btn btn-sm btn-ghost" id="trendingAllBtn" type="button" hidden>查看本季全部</button>
     </div>
     <div class="trend-strip" id="trendingStrip"></div>
   </section>
@@ -78,65 +66,82 @@
   </section>
 
   <section class="browse">
-    <div class="toolbar">
-      <div class="chips" id="categoryChips" role="group" aria-label="分类筛选"></div>
-      <div class="select-wrap">
-        <span id="resultCount">—</span>
+    <!-- 搜索 + 全部筛选收在同一条筛选栏里 -->
+    <div class="filter-bar card" id="filterBar">
+      <div class="filter-main">
+        <div class="search-box" id="searchBox">
+          <span class="icon" aria-hidden="true">🔍</span>
+          <input id="searchInput" type="search" autocomplete="off"
+                 placeholder="搜索作品、公司…" aria-label="搜索作品或制作公司">
+          <button class="search-clear" id="searchClear" type="button" aria-label="清除搜索">✕</button>
+        </div>
+        <button class="btn btn-primary" id="searchBtn" type="button">搜索</button>
+        <button class="btn btn-sm filter-toggle" id="filterToggleBtn" type="button"
+                aria-expanded="false" aria-controls="filterFields">
+          <span aria-hidden="true">⚙</span><span class="filter-toggle-text">筛选</span>
+          <span class="filter-count" id="filterCount" hidden>0</span>
+        </button>
+      </div>
+
+      <div class="filter-fields" id="filterFields">
+        <div class="field field-chips">
+          <span class="field-label">分类</span>
+          <div class="chips" id="categoryChips" role="group" aria-label="分类筛选"></div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="yearSelect">年份</label>
+          <select id="yearSelect" aria-label="按年份筛选"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="seasonSelect">季度</label>
+          <select id="seasonSelect" aria-label="按季度筛选"></select>
+        </div>
+        <div class="field field-combo">
+          <label class="field-label" for="studioInput">制作公司</label>
+          <div class="combo" id="studioCombo">
+            <input id="studioInput" type="text" autocomplete="off" role="combobox"
+                   aria-expanded="false" aria-controls="studioList" aria-autocomplete="list"
+                   aria-label="按制作公司筛选，可输入中文或英文名搜索"
+                   placeholder="全部公司（可搜「京阿尼」/ Kyoto）">
+            <div class="combo-list" id="studioList" role="listbox" aria-label="制作公司列表" hidden></div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="formatSelect">类型</label>
+          <select id="formatSelect" aria-label="按类型筛选"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="sortSelect">排序</label>
+          <select id="sortSelect" aria-label="排序方式"></select>
+        </div>
+      </div>
+
+      <p class="filter-hint" id="filterHint" hidden aria-live="polite"></p>
+    </div>
+
+    <div class="results-head" id="resultsHead">
+      <div class="results-top">
+        <strong class="results-count" id="resultCount">共 — 部</strong>
+        <span class="faint results-meta" id="libraryMeta">—</span>
+      </div>
+      <div class="results-filters">
+        <div class="active-chips" id="activeChips" hidden></div>
+        <button class="btn btn-sm btn-ghost" id="clearAllBtn" type="button" hidden>清除全部</button>
       </div>
     </div>
 
-    <div class="toolbar">
-      <div class="chip-row-label">年份</div>
-      <div class="chips chips-scroll" id="yearAxis" role="group" aria-label="按年份筛选"></div>
-    </div>
-
-    <div class="season-board card" id="seasonBoard" hidden>
-      <div class="season-board-head">
-        <h3 id="seasonBoardTitle">季度表</h3>
-        <span class="faint">点季度查看该季作品（数据来自 AniList 的季节 / 年份字段）</span>
-      </div>
-      <div class="chips" id="seasonChips" role="group" aria-label="按季度筛选"></div>
-    </div>
-
-    <div class="toolbar toolbar-filters">
-      <div class="select-wrap">
-        <label class="faint" for="studioSelect">制作公司</label>
-        <select id="studioSelect"><option value="">全部制作公司</option></select>
-      </div>
-      <div class="select-wrap">
-        <label class="faint" for="formatSelect">类型</label>
-        <select id="formatSelect">
-          <option value="">全部</option>
-          <option value="TV">TV 动画</option>
-          <option value="MOVIE">剧场版</option>
-          <option value="ONA">网络动画</option>
-        </select>
-      </div>
-      <div class="select-wrap">
-        <label class="faint" for="sortSelect">排序</label>
-        <select id="sortSelect">
-          <option value="score">分数最高</option>
-          <option value="popularity">热度最高</option>
-          <option value="year-desc">年份（新→旧）</option>
-          <option value="year-asc">年份（旧→新）</option>
-          <option value="name">名称（中文）</option>
-          <option value="episodes">集数最多</option>
-        </select>
-      </div>
-      <button class="btn btn-sm btn-ghost" id="resetBtn" type="button">重置筛选</button>
+    <div class="poster-grid" id="posterGrid" aria-live="polite"></div>
+    <div id="gridSentinel" class="grid-sentinel" aria-hidden="true"></div>
+    <div class="load-more-wrap">
+      <button class="btn" id="loadMoreBtn" type="button" hidden>显示更多</button>
     </div>
   </section>
 
-  <h2 class="section-head" style="margin:22px 0 12px">番剧资料库</h2>
-  <div class="poster-grid" id="posterGrid" aria-live="polite"></div>
-  <div class="load-more-wrap">
-    <button class="btn" id="loadMoreBtn" type="button" hidden>加载更多</button>
-  </div>
-
   <p class="faint" style="margin-top:22px">
     筛选条件会写进网址，可以直接复制分享，例如
-    <code>index.html?genre=奇幻&amp;year=2011&amp;sort=score</code>；
-    从详情页返回时筛选不会丢。
+    <code>index.html?q=奇幻&amp;year=2020&amp;sort=score</code>；
+    从详情页返回时筛选与滚动位置都会保留。
+    键盘：<code>/</code> 聚焦搜索框，<code>R</code> 在当前筛选结果里随机一部（搜索框聚焦时不会触发）。
   </p>
 </main>
 
@@ -147,9 +152,9 @@
   </div>
 </footer>
 
-<script src="assets/js/data.js?v=20260914b"></script>
-<script src="assets/js/store.js?v=20260914b"></script>
-<script src="assets/js/ui.js?v=20260914b"></script>
-<script src="assets/js/home.js?v=20260914b"></script>
+<script src="assets/js/data.js?v=20260914c"></script>
+<script src="assets/js/store.js?v=20260914c"></script>
+<script src="assets/js/ui.js?v=20260914c"></script>
+<script src="assets/js/home.js?v=20260914c"></script>
 </body>
 </html>

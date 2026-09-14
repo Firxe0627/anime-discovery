@@ -68,8 +68,81 @@
     'Orange': 'Orange',
     'Telecom Animation Film': 'Telecom Animation Film',
     'Shin-Ei Animation': 'SHIN-EI 动画',
-    'Tezuka Productions': '手冢 Production'
+    'Tezuka Productions': '手冢 Production',
+    'Studio Ghibli': '吉卜力工作室',
+    'Studio Chizu': '地图工作室',
+    'Gainax': 'GAINAX',
+    'Satelight': 'Satelight',
+    'GONZO': 'GONZO',
+    'Tatsunoko Production': '龙之子 Production',
+    'PINE JAM': 'PINE JAM',
+    'Bibury Animation Studios': 'Bibury Animation Studios',
+    'LIDENFILMS': 'LIDENFILMS'
   };
+
+  /* 制作公司别名（中文 / 日文 / 常见简称），用于搜索，也用于「输入公司名唯一匹配时自动套用筛选」。
+     只做名称映射，不新增或改动任何作品数据。 */
+  var STUDIO_ALIASES = {
+    'Kyoto Animation': ['京都动画', '京阿尼', '京都アニメーション', '京アニ', 'KyoAni'],
+    'ufotable': ['飞碟社', 'ufotable'],
+    'MAPPA': ['mappa'],
+    'A-1 Pictures': ['A1 Pictures', 'A1Pictures', 'A-1'],
+    'bones': ['BONES', '骨头社', 'Bones'],
+    'bones film': ['BONES FILM'],
+    'CloverWorks': ['clover works', 'CloverWorks'],
+    'WIT STUDIO': ['WIT', 'Wit Studio', '霸权社'],
+    'TRIGGER': ['Trigger', '扳机社'],
+    'Shaft': ['SHAFT', 'シャフト'],
+    'Production I.G': ['Production IG', 'I.G', 'IG Port'],
+    'J.C.STAFF': ['J.C. Staff', 'JC Staff', 'JCSTAFF', '节操社'],
+    'MADHOUSE': ['Madhouse', '疯屋'],
+    'Toei Animation': ['东映动画', '東映アニメーション', 'Toei'],
+    'Sunrise': ['SUNRISE', '日升', '日升动画', 'サンライズ', 'Bandai Namco Filmworks'],
+    'Studio Pierrot': ['小丑社', 'Pierrot', 'ぴえろ'],
+    'TMS Entertainment': ['TMS 娱乐', 'Tokyo Movie Shinsha'],
+    'david production': ['David Production', 'davidpro'],
+    'Doga Kobo': ['动画工房', '動画工房'],
+    'Science SARU': ['サイエンスSARU', 'ScienceSARU'],
+    'CoMix Wave': ['CoMix Wave Films', '新海诚'],
+    'Studio Khara': ['khara', 'カラー'],
+    'Bibury Animation Studios': ['Bibury', 'バイブリーアニメーションスタジオ']
+  };
+
+  /* 归一化：转小写并去掉空格、点、横线等分隔符，用于公司名匹配 */
+  function normalizeKey(str) {
+    return String(str === undefined || str === null ? '' : str)
+      .toLowerCase()
+      .replace(/[\s\u3000·・.\-_/\\()（）[\]【】!！?？'"’“”]/g, '');
+  }
+
+  /** 某个制作公司的全部可搜索名称（英文原名、中文显示名、别名） */
+  function studioAliases(name) {
+    var list = [name, STUDIO_ZH[name]].concat(STUDIO_ALIASES[name] || []);
+    var seen = {};
+    return list.filter(function (item) {
+      if (!item) { return false; }
+      var key = normalizeKey(item);
+      if (!key || seen[key]) { return false; }
+      seen[key] = true;
+      return true;
+    });
+  }
+
+  /**
+   * 按公司名 / 别名匹配制作公司列表（studios 来自 studioList）。
+   * 返回 { exact: [...], partial: [...] }：exact 是完全相等的匹配，partial 是包含关系的匹配。
+   */
+  function matchStudios(studios, query) {
+    var q = normalizeKey(query);
+    var result = { exact: [], partial: [] };
+    if (!q || q.length < 2) { return result; }
+    (studios || []).forEach(function (row) {
+      var aliases = studioAliases(row.name).map(normalizeKey);
+      if (aliases.indexOf(q) !== -1) { result.exact.push(row); return; }
+      if (aliases.some(function (a) { return a.indexOf(q) !== -1; })) { result.partial.push(row); }
+    });
+    return result;
+  }
 
   var cache = { anime: null, trending: null, animeSource: '', trendingSource: '' };
   var isFileProtocol = global.location && global.location.protocol === 'file:';
@@ -332,6 +405,62 @@
     return scored.slice(0, limit || 6).map(function (row) { return row.anime; });
   }
 
+  /* ---------------------------------------------- 筛选状态与网址参数 */
+
+  var FILTER_KEY = 'anime-tracker:filters';
+  var SCROLL_KEY = 'anime-tracker:scroll';   // 首页滚动位置（sessionStorage，仅本标签页）
+  var RETURN_KEY = 'anime-tracker:return';   // 详情页返回标记：回到首页时恢复滚动位置
+
+  /** 首页筛选状态的默认值（分类用「全部」表示不筛选） */
+  function defaultFilters() {
+    return { keyword: '', category: '全部', year: '', season: '', studio: '', format: '', sort: 'score' };
+  }
+
+  /** 筛选状态 → 网址查询串（只写非默认项，?q= &genre= &year= &season= &studio= &format= &sort=） */
+  function filtersToQuery(filters) {
+    var f = filters || {};
+    var p = new global.URLSearchParams();
+    if (f.keyword) { p.set('q', f.keyword); }
+    if (f.category && f.category !== '全部') { p.set('genre', f.category); }
+    if (f.year) { p.set('year', String(f.year)); }
+    if (f.season) { p.set('season', f.season); }
+    if (f.studio) { p.set('studio', f.studio); }
+    if (f.format) { p.set('format', f.format); }
+    if (f.sort && f.sort !== 'score') { p.set('sort', f.sort); }
+    return p.toString();
+  }
+
+  /** 网址查询串 → 筛选状态（无效参数忽略，分类必须是已知分类） */
+  function filtersFromQuery(search) {
+    var p = new global.URLSearchParams(search || '');
+    var f = defaultFilters();
+    if (p.get('q')) { f.keyword = p.get('q'); }
+    if (p.get('genre') && CATEGORIES.indexOf(p.get('genre')) !== -1) { f.category = p.get('genre'); }
+    if (p.get('year')) { f.year = String(p.get('year')); }
+    if (p.get('season')) { f.season = p.get('season'); }
+    if (p.get('studio')) { f.studio = p.get('studio'); }
+    if (p.get('format')) { f.format = p.get('format'); }
+    if (p.get('sort')) { f.sort = p.get('sort'); }
+    return f;
+  }
+
+  function rememberFilters(filters) {
+    try { global.localStorage.setItem(FILTER_KEY, JSON.stringify(filters)); } catch (e) { /* ignore */ }
+  }
+
+  /** 读回本机记住的筛选条件（从详情页返回首页时用），读不到返回 null */
+  function readRememberedFilters() {
+    try {
+      var raw = global.localStorage.getItem(FILTER_KEY);
+      if (!raw) { return null; }
+      var saved = JSON.parse(raw);
+      if (!saved || typeof saved !== 'object') { return null; }
+      var f = defaultFilters();
+      Object.keys(f).forEach(function (k) { if (saved[k] !== undefined && saved[k] !== null) { f[k] = saved[k]; } });
+      return f;
+    } catch (e) { return null; }
+  }
+
   global.AnimeData = {
     CATEGORIES: CATEGORIES,
     TRACK_STATUS: TRACK_STATUS,
@@ -358,6 +487,8 @@
     primaryStudio: primaryStudio,
     studioName: studioName,
     studioLabel: studioLabel,
+    studioAliases: studioAliases,
+    matchStudios: matchStudios,
     tagsOf: tagsOf,
     externalLinks: externalLinks,
     trailerEmbedUrl: trailerEmbedUrl,
@@ -367,6 +498,14 @@
     yearList: yearList,
     studioList: studioList,
     resolveRelations: resolveRelations,
-    recommend: recommend
+    recommend: recommend,
+    FILTER_KEY: FILTER_KEY,
+    SCROLL_KEY: SCROLL_KEY,
+    RETURN_KEY: RETURN_KEY,
+    defaultFilters: defaultFilters,
+    filtersToQuery: filtersToQuery,
+    filtersFromQuery: filtersFromQuery,
+    rememberFilters: rememberFilters,
+    readRememberedFilters: readRememberedFilters
   };
 })(window);

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>关于本站 · 番组发现 AnimeDiscovery</title>
 <meta name="description" content="本站只做动漫信息展示与个人追番记录：资料来自 AniList 与 Bangumi，PV 为官方 YouTube 嵌入，封面版权归权利人，不提供在线播放。">
-<link rel="stylesheet" href="assets/css/style.css?v=20260914b">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914c">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🌸</text></svg>">
 </head>
 <body data-page="about">
@@ -43,8 +43,14 @@
         <li>收录 <strong>539 部</strong>精选番剧（TV 481 / 剧场版 38 / 网络动画 20，2005 年至今），
           海报墙使用真实封面，按热度排序挑选，不做“把几万条离线库整包塞进前端”的事。</li>
         <li>中文名与中文简介来自 Bangumi；没有中文资料时显示日文原名或英文简介，<strong>不做机器翻译、不编造</strong>。</li>
-        <li>支持中文 / 日文 / 英文 / 罗马字 / 制作公司关键词搜索，分类、年份轴、季度表、制作公司、类型（TV / 剧场版 / ONA）多维筛选。</li>
-        <li>筛选条件写进网址（<code>?q= &amp;genre= &amp;year= &amp;season= &amp;studio= &amp;sort=</code>），可以直接分享给朋友。</li>
+        <li>搜索与筛选收在同一条筛选栏：关键词搜索（中文 / 日文 / 英文 / 罗马字 / 制作公司；输入停顿 300ms 自动筛选，
+          也可以按「搜索」或回车），加上分类、年份、季度、制作公司（可搜索下拉，支持「京都动画 / 京阿尼 / Kyoto Animation」这类中英别名）、
+          类型（TV / 剧场版 / 网络动画）与排序；每个选项旁都会显示当前条件下的命中数量，0 命中的选项会灰掉或隐藏。</li>
+        <li>某家公司在站内能搜到几部，取决于本项目的<strong>精选库</strong>收录了多少，<strong>不代表该公司的全部作品</strong>；
+          「本季热门」是抓取时留下的快照，需要重新跑脚本才会更新。</li>
+        <li>筛选条件写进网址（<code>?q= &amp;genre= &amp;year= &amp;season= &amp;studio= &amp;format= &amp;sort=</code>），可以直接分享给朋友；
+          从详情页返回时筛选与滚动位置都会保留。键盘：<code>/</code> 聚焦搜索框，<code>R</code> 在当前筛选结果里随机一部
+          （搜索框聚焦时 <code>R</code> 不会触发）。</li>
         <li>详情页有中文速览、完整简介（默认收起）、标签、分数、制作公司、集数进度、追番状态、数据来源徽章与同系列时间轴。</li>
         <li>「本季 / 热门」区块展示近期热度最高的连载作品，点击同样进入站内详情页。</li>
         <li>我的追番支持想看 / 在看 / 看完 / 弃番、按集进度、继续看排序、猜你也想看、导出 / 导入 JSON 与分享码。</li>
@@ -143,8 +149,8 @@
   </div>
 </footer>
 
-<script src="assets/js/data.js?v=20260914b"></script>
-<script src="assets/js/store.js?v=20260914b"></script>
-<script src="assets/js/ui.js?v=20260914b"></script>
+<script src="assets/js/data.js?v=20260914c"></script>
+<script src="assets/js/store.js?v=20260914c"></script>
+<script src="assets/js/ui.js?v=20260914c"></script>
 </body>
 </html>

@@ -104,6 +104,14 @@
 
   function detailUrl(id) { return 'detail.html?id=' + encodeURIComponent(id); }
 
+  /** 回到首页的链接：带上本机记住的筛选条件，从详情页返回时不丢筛选 */
+  function homeUrl() {
+    var D = global.AnimeData;
+    var saved = D && D.readRememberedFilters ? D.readRememberedFilters() : null;
+    var qs = D && D.filtersToQuery ? D.filtersToQuery(saved || {}) : '';
+    return 'index.html' + (qs ? '?' + qs : '');
+  }
+
   /* -------------------------------------------------------------- 海报卡 */
 
   function posterCard(anime, opts) {
@@ -363,7 +371,8 @@
     posterCard: posterCard, renderGrid: renderGrid, emptyBox: emptyBox,
     skeletonGrid: skeletonGrid, trendingCard: trendingCard,
     progressItem: progressItem, statusSelect: statusSelect,
-    detailUrl: detailUrl, refreshBadge: refreshBadge, initChrome: initChrome
+    detailUrl: detailUrl, homeUrl: homeUrl,
+    refreshBadge: refreshBadge, initChrome: initChrome
   };
 
   if (document.readyState === 'loading') {
