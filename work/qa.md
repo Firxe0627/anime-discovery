@@ -155,3 +155,29 @@ Codex 内置浏览器实测；线上版本 https://firxe0627.github.io/anime-dis
 3. **总集数未知**的连载作品（如 ONE PIECE）按 24 集占位记录进度，页面已标注。
 4. **Jikan 未参与本次数据**：运行时持续 504，脚本保留其逻辑但本次未启用。
 5. **集数列表为占位条目**：只用于记录「看到第几集」，不代表真实剧集标题，站内已注明。
+
+---
+
+## 线上复检（GitHub Pages）
+
+推送后等 Actions 的 “Deploy static site to GitHub Pages” 变绿（本次两次部署均 success），
+在真实浏览器里访问 <https://firxe0627.github.io/anime-discovery/> 复检：
+
+| 项目 | 线上实测结果 |
+| --- | --- |
+| 首页 | 539 部（首批渲染 48 部 + 加载更多）、有中文名 473、有官方 PV 520、数据来源 `data/anime.json` |
+| 本季/热门 | 23 部，链接全部指向站内 `detail.html?id=...` |
+| 年份轴 / 季度表 / 制作公司 | 年份按钮 23 个；季度表正常；公司下拉含「京都动画（Kyoto Animation） · 23 部」 |
+| 详情页（frieren） | 徽章「数据：AniList + Bangumi / 有官方 PV」；外链 MAL / Bangumi / AniList；时间轴 3 条；状态四态 |
+| PV | 点击前 `iframe` 数 0；点击后插入 1 个 `youtube-nocookie.com` 嵌入并默认静音 |
+| 我的追番 | 状态筛选 5 个 chip + 数据管理 5 个按钮 + 分享码文本框，均正常渲染 |
+
+### 过程中发现并修复的两个问题
+
+1. **静态资源缓存混用**：部署后一度出现「新 HTML + 旧 JS」的混合状态（首页只渲染出骨架屏、
+   年份轴与统计为空）。原因是 CDN / 浏览器仍缓存着同名的旧 `*.js`。
+   已修复：四个页面的 CSS / JS 引用统一加上版本号（`?v=20260914b`），以后每次改动资源时同步递增版本号即可。
+2. **数据 JSON 请求可能长时间挂起**：个别网络下 `fetch('data/anime.json')` 会一直不返回，
+   页面停在骨架屏（无报错、无超时）。已修复：`data.js` 的 JSON 请求加 9 秒 `AbortSignal.timeout`，
+   超时或失败会自动改用同内容的 `data/anime.js` 兜底；修复后线上复检显示
+   「数据来源：data/anime.json」正常渲染 539 部。
