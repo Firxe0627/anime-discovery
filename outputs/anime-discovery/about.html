@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>关于本站 · 番组发现 AnimeDiscovery</title>
 <meta name="description" content="本站只做动漫信息展示与个人追番记录：资料来自 AniList 与 Bangumi，PV 为官方 YouTube 嵌入，封面版权归权利人，不提供在线播放。">
-<link rel="stylesheet" href="assets/css/style.css?v=20260914c">
+<link rel="stylesheet" href="assets/css/style.css?v=20260919a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🌸</text></svg>">
 </head>
 <body data-page="about">
@@ -40,8 +40,9 @@
     <div class="card">
       <h2>这个站点做什么</h2>
       <ul>
-        <li>收录 <strong>539 部</strong>精选番剧（TV 481 / 剧场版 38 / 网络动画 20，2005 年至今），
-          海报墙使用真实封面，按热度排序挑选，不做“把几万条离线库整包塞进前端”的事。</li>
+        <li>收录 <strong>3174 部</strong>番剧（TV 2422 / 剧场版 521 / 网络动画 231，2005–2026 年），
+          海报墙使用真实封面；按年份逐年取热度靠前的作品，保证每一年都有覆盖，
+          不做“把几万条离线库整包塞进前端”的事。</li>
         <li>中文名与中文简介来自 Bangumi；没有中文资料时显示日文原名或英文简介，<strong>不做机器翻译、不编造</strong>。</li>
         <li>搜索与筛选收在同一条筛选栏：关键词搜索（中文 / 日文 / 英文 / 罗马字 / 制作公司；输入停顿 300ms 自动筛选，
           也可以按「搜索」或回车），加上分类、年份、季度、制作公司（可搜索下拉，支持「京都动画 / 京阿尼 / Kyoto Animation」这类中英别名）、
@@ -78,11 +79,13 @@
           <strong>Bangumi（api.bgm.tv，中文源）</strong>
           提供中文名与中文简介。抓取时带 Bangumi 要求的 User-Agent，请求间隔 ≥1 秒；
           匹配不上就留空，前端自动显示原名或英文简介，绝不机器翻译。
+          本次抓取时 Bangumi 的 v0 搜索接口持续 500，脚本自动切到同一来源的旧版搜索接口
+          （<code>/search/subject</code>）+ 条目详情接口取中文简介。
         </li>
         <li>
           <strong>Jikan（可选回退）</strong>
-          抓取脚本保留了 Jikan（MyAnimeList 公开 API）作为补充来源；本次运行时 Jikan 持续返回 504，
-          因此资料全部来自 AniList，抓取报告里如实记录。
+          抓取脚本保留了 Jikan（MyAnimeList 公开 API）作为补充来源，只在某条资料缺少 MAL id 时兜底查询；
+          连续失败会自动熔断，不做无谓等待。本次运行时 Jikan 持续返回 504，熔断后未参与数据，抓取报告里如实记录。
         </li>
         <li>
           <strong>封面图片</strong>
@@ -91,7 +94,7 @@
         </li>
       </ul>
       <p class="faint" style="margin-top:14px">
-        本次数据规模：539 部中 473 部有中文名、471 部有中文简介、520 部有官方 PV、439 部有同系列关系。
+        本次数据规模：3174 部中 2546 部有中文名、2545 部有中文简介、2206 部有官方 PV、2143 部有同系列关系。
         如果某个作品在数据源里匹配不到，脚本会跳过而不编造内容。
       </p>
     </div>
@@ -109,8 +112,9 @@
 
       <h2 style="margin-top:22px">数据与隐私</h2>
       <ul>
-        <li>番剧资料存放在 <code>data/anime.json</code>（热门列表在 <code>data/trending.json</code>），
-          由 <code>work/fetch-anime-data.mjs</code> 生成。</li>
+        <li>番剧资料存放在 <code>data/</code>：主库超过 3MB 会拆成 <code>data/anime-1.json</code>、
+          <code>anime-2.json</code>…（<code>data/anime.json</code> 是分片清单），前端取回后合并；
+          热门列表在 <code>data/trending.json</code>。全部由 <code>work/fetch-anime-data.mjs</code> 生成。</li>
         <li>收藏、进度与状态写在浏览器的 localStorage（键名 <code>anime-tracker:v1</code>），
           清除浏览器数据即会清空，本站无法读取也无法恢复；导出与分享码都在本地完成。</li>
         <li>本站没有使用任何第三方离线番剧数据库；<code>work/datasets/</code> 目录（如果你放入原始数据集）
@@ -149,8 +153,8 @@
   </div>
 </footer>
 
-<script src="assets/js/data.js?v=20260914c"></script>
-<script src="assets/js/store.js?v=20260914c"></script>
-<script src="assets/js/ui.js?v=20260914c"></script>
+<script src="assets/js/data.js?v=20260919a"></script>
+<script src="assets/js/store.js?v=20260919a"></script>
+<script src="assets/js/ui.js?v=20260919a"></script>
 </body>
 </html>

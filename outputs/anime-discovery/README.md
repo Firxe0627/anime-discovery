@@ -1,6 +1,6 @@
 # 番组发现 AnimeDiscovery
 
-纯前端的「动漫发现 / 追番记录」静态站：**539 部**精选番剧资料库（真实封面）、本季热门、
+纯前端的「动漫发现 / 追番记录」静态站：**3174 部**番剧资料库（2005–2026 年，真实封面）、本季热门、
 年份轴与季度表、分类 / 制作公司 / 类型筛选、可分享的筛选链接、站内详情页、
 详情页官方 PV、追番四态管理与进度、数据导入导出与分享码。
 
@@ -35,7 +35,7 @@ node serve.js          # 零依赖，无需 npm install；换端口：node serve
 
 | 页面 | 说明 |
 | --- | --- |
-| `index.html` 首页 | 本季热门快照（23 部，全部站内详情，附「查看本季全部」）、539 部海报墙、搜索 + 分类 / 年份 / 季度 / 制作公司（可搜索下拉）/ 类型 / 排序 一套筛选（每个选项旁显示当前命中数量）、可逐条去掉的条件标签、随机一部、继续看 |
+| `index.html` 首页 | 本季热门快照（23 部，全部站内详情，附「查看本季全部」）、3174 部海报墙（每批 48 部渲染）、搜索 + 分类 / 年份 / 季度 / 制作公司（可搜索下拉）/ 类型 / 排序 一套筛选（每个选项旁显示当前命中数量，0 命中灰掉或隐藏）、可逐条去掉的条件标签、随机一部、继续看 |
 | `detail.html` 详情 | 大封面、中文速览、中文简介 + 英文简介（默认收起）、标签、分数与收藏数、制作公司、集数进度、追番状态、数据来源徽章、官方 PV、同系列时间轴、相关推荐、MAL / Bangumi / AniList 外链 |
 | `mylist.html` 我的追番 | 想看 / 在看 / 看完 / 弃番 + 计数、按集进度、继续看、猜你也想看、导出 / 导入 JSON、复制分享码、清空 |
 | `about.html` 关于 | 数据来源与署名、PV 说明、不做什么的清单、正版平台指引、版权与免责声明 |
@@ -72,9 +72,9 @@ node serve.js          # 零依赖，无需 npm install；换端口：node serve
 
 ### 两个容易误解的地方
 
-- **某家公司能搜到几部，取决于本站精选库，不是该社的全部作品。**
-  资料库是脚本按热度挑选的 539 部，所以「京都动画 23 部」的意思是「本站精选库里收录了 23 部京都动画的作品」，
-  不代表京都动画只做过 23 部。换一家公司同理。
+- **某家公司能搜到几部，取决于本站库，不是该社的全部作品。**
+  资料库是脚本按年份逐年挑选的 3174 部（每年取热度靠前的作品），所以「京都动画 N 部」的意思是
+  「本站库里收录了 N 部京都动画的作品」，不代表京都动画只做过 N 部。换一家公司同理。
 - **「本季热门」是抓取时的快照，需要重新跑脚本才会更新。**
   它是 `data/trending.json` 里的固定列表（脚本运行时按 AniList 当时的热度取一次），
   不会随着新一季自动更换；想更新就重新执行下面「重新跑数据脚本」里的命令（`--only=trending` 只更新热门）。
@@ -89,12 +89,14 @@ node serve.js          # 零依赖，无需 npm install；换端口：node serve
 | 官方 PV | AniList `trailer`（仅当 `site == youtube`，只保存视频 id） |
 | MAL 作品页链接 | AniList `idMal` → `https://myanimelist.net/anime/<id>` |
 | Bangumi 作品页链接 | Bangumi subject id → `https://bgm.tv/subject/<id>` |
-| Jikan（MyAnimeList 公开 API） | 脚本中保留的可选回退来源；本次运行时持续 504，未参与数据 |
+| Jikan（MyAnimeList 公开 API） | 仅在缺少 MAL id 时兜底查询的可选回退来源；连续失败会自动熔断，本次运行时持续 504，未参与数据 |
 
 **本次抓取实况**（详见 `work/fetch-report.md` 与 `work/qa.md`）：
-539 部中 473 部有中文名、471 部有中文简介、520 部有官方 PV、439 部有同系列关系；
-Bangumi 查询命中 476 条（命中率 88%）。没有中文资料的作品显示日文原名或英文简介，
-**不做机器翻译、不编造内容**；两个数据源都匹配不到的作品会被跳过而不是硬塞。
+3174 部（2005–2026 年，TV 2422 / 剧场版 521 / 网络动画 231）中，2546 部有中文名、
+2545 部有中文简介、2206 部有官方 PV、2143 部有同系列关系；命中 Bangumi 共 2578 条。
+没有中文资料的作品显示日文原名或英文简介，**不做机器翻译、不编造内容**。
+抓取当天 Bangumi 的 v0 搜索接口整体返回 500，脚本自动切到同一来源的旧版搜索接口
+（命中 1382 次）+ 条目详情接口（1250 次）取中文简介，报告里如实记录。
 
 ## 重新跑数据脚本
 
@@ -102,8 +104,10 @@ Bangumi 查询命中 476 条（命中率 88%）。没有中文资料的作品显
 
 ```powershell
 cd C:\Users\User\Documents\Codex\2026-09-14\new-chat
-node work/fetch-anime-data.mjs                    # 目标 520 部，走缓存（重跑数秒）
-node work/fetch-anime-data.mjs --limit=450        # 改目标条数
+node work/fetch-anime-data.mjs                    # 默认：2005–2026 每年 150 部，走缓存
+node work/fetch-anime-data.mjs --per-year=200     # 改每年条数
+node work/fetch-anime-data.mjs --years=2006-2026  # 只跑指定年份区间
+node work/fetch-anime-data.mjs --limit=450        # 限制总条数
 node work/fetch-anime-data.mjs --no-cache         # 忽略缓存重新请求
 node work/fetch-anime-data.mjs --only=trending    # 只更新「本季 / 热门」
 node work/fetch-anime-data.mjs --skip-bangumi     # 只跑 AniList，跳过中文补全
@@ -111,20 +115,28 @@ node work/fetch-anime-data.mjs --skip-bangumi     # 只跑 AniList，跳过中�
 
 脚本行为：
 
-- 请求间隔 ≥ 1100ms；429 / 403 / 5xx 按 `Retry-After` 或指数退避（2→4→8→16 秒）重试，最多 4 次；
-  单次请求 20 秒超时；失败结果缓存 10 分钟，成功结果缓存 14 天（`work/api-cache/`，已 gitignore）。
-- 数据源优先级 AniList → Bangumi →（可选）Jikan；中文缺失时保留原名，不机翻。
-- 筛选：仅 TV / Movie / ONA，年份 ≥2005，按罗马字标题去重；热门条目会并入主库，保证首页点得进站内详情。
-- 健康检查：条数 < 300 或热门 < 10 条时判定抓取不完整，**保留旧 JSON 不覆盖**，只写报告。
+- 主源 **AniList**：按年份轴逐年分页（`startDate_greater/lesser` + `sort: POPULARITY_DESC`，
+  `format_in: [TV, MOVIE, ONA]`，`isAdult: false`），2005–2026 年每年取前 N 部，保证每一年都有覆盖。
+- 中文名 / 中文简介走 **Bangumi**：优先 v0 搜索接口，接口整体不可用时自动切到旧版搜索接口
+  （`/search/subject`）+ 条目详情接口；连续失败先冷却 60 秒，冷却两轮仍不可用就熔断，不长时间空等。
+- 请求间隔 ≥ 1100ms；429 / 403 / 5xx 按 `Retry-After` 或指数退避（2→4→8→16 秒）重试；
+  单次请求 20 秒超时；失败结果缓存 10 分钟（期间不再重复打同一个 key），成功结果缓存 14 天（`work/api-cache/`，已 gitignore）。
+- 可选回退 **Jikan**：只在某条资料缺少 MAL id 时查询，连续失败自动熔断。
+- 筛选：仅 TV / Movie / ONA，年份 2005–2026，按罗马字标题去重；时长 ≤6 分钟的短片 / CM / PV 不收（不要短篇广告）；
+  热门条目会并入主库，保证首页点得进站内详情；旧库里这次没重新拉到的条目会保留，资料库只增不减。
+- 健康检查：条数低于现有库的 80%（且不少于 300）或热门 < 10 条时判定抓取不完整，**保留旧 JSON 不覆盖**，只写报告。
+- 写入：按 UTF-8 字节切分，单个文件 < 3MB；单文件时 `data/anime.json` 就是数组，拆文件时它是分片清单。
 - **只保存文本与图片 / PV 的视频 id，绝不下载图片或视频。**
-- 产物：`data/anime.json` + `anime.js`、`data/trending.json` + `trending.js`、`work/fetch-report.md`。
+- 产物：`data/anime.json`（+ `anime-1.json`… 分片）+ `anime.js`（+ `anime-1.js`…）、
+  `data/trending.json` + `trending.js`、`work/fetch-report.md`。
 
-要增删或修正作品，编辑脚本顶部的 `ENTRIES` / 抓取参数；若要给某些作品指定准确条目，
-可在 `ENTRIES` 里加 `malId`（当前实现直接按 AniList 热度抓取，`malId` 由 API 返回）。
+脚本可以反复重跑：命中的中文会沿用，AniList / Bangumi 的结果都带缓存，重跑通常只要几分钟。
 
 ## 数据结构
 
-`data/anime.json` 是数组，每条主要字段：
+主库文件格式：单文件时 `data/anime.json` 是数组；拆文件时它是清单
+（`{ generatedAt, count, source, parts: [{ file, script, count, bytes }] }`），真正的数据在
+`data/anime-1.json`、`anime-2.json`… 里，前端取回后按顺序合并成一个数组。每条主要字段：
 
 | 字段 | 说明 |
 | --- | --- |
@@ -155,8 +167,9 @@ node work/fetch-anime-data.mjs --skip-bangumi     # 只跑 AniList，跳过中�
 | `outputs/anime-discovery/detail.html` | 番剧详情页（`?id=` 定位） |
 | `outputs/anime-discovery/mylist.html` | 我的追番：状态、进度、推荐、导入导出 |
 | `outputs/anime-discovery/about.html` | 关于：数据来源、PV 说明、免责声明 |
-| `outputs/anime-discovery/data/anime.json` | 539 部番剧元数据（权威数据，压缩输出） |
-| `outputs/anime-discovery/data/anime.js` | 同内容 JS，供 `file://` 兜底 |
+| `outputs/anime-discovery/data/anime.json` | 主库清单（单文件运行时这里直接是数组） |
+| `outputs/anime-discovery/data/anime-1.json` ~ `anime-3.json` | 主库分片，每个 < 3MB，前端取回后合并 |
+| `outputs/anime-discovery/data/anime.js` + `anime-1.js` ~ `anime-3.js` | 同内容 JS，供 `file://` 兜底 |
 | `outputs/anime-discovery/data/trending.json` | 本季 / 热门 23 条 |
 | `outputs/anime-discovery/data/trending.js` | 同内容 JS 兜底 |
 | `outputs/anime-discovery/assets/css/style.css` | 深色主题、封面、骨架屏、时间轴、PV、响应式 |

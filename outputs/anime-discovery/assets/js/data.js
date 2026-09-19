@@ -2,7 +2,9 @@
    data.js —— 数据加载与字段取值
 
    数据由 work/fetch-anime-data.mjs 生成（主资料 AniList，中文名/中文简介 Bangumi）：
-     data/anime.json    主库（500+ 条）      data/anime.js    同内容 JS（file:// 兜底）
+     主库很大时会被拆成 data/anime-1.json、anime-2.json …，此时 data/anime.json 是一份清单
+     （{ count, parts: [...] }）；前端把清单里的分片并行取回后合并成同一个数组。
+     data/anime.js（+ anime-1.js / anime-2.js …）是 file:// 打开时的兜底，内容与 JSON 一致。
      data/trending.json 本季/热门（独立）     data/trending.js 同内容 JS
 
    本站只保存图片 / PV 的远程 URL，不下载、不托管任何图片或视频文件。
@@ -10,6 +12,13 @@
 
 (function (global) {
   'use strict';
+
+  /* 资源版本号：数据或脚本有更新就 +1，避免 GitHub Pages / 浏览器缓存混用新旧文件 */
+  var ASSET_VERSION = '20260919a';
+
+  function withVersion(url) {
+    return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + ASSET_VERSION;
+  }
 
   var CATEGORIES = ['全部', '热血', '日常', '奇幻', '治愈', '科幻', '悬疑'];
 
@@ -174,7 +183,7 @@
     var timeout = (typeof global.AbortSignal !== 'undefined' && global.AbortSignal.timeout)
       ? global.AbortSignal.timeout(9000) : null;
     if (timeout) { options.signal = timeout; }
-    return global.fetch(url, options).then(function (res) {
+    return global.fetch(withVersion(url), options).then(function (res) {
       if (!res.ok) { return null; }
       return res.json().catch(function () { return null; });
     }).catch(function () { return null; });
@@ -183,16 +192,66 @@
   function loadPair(jsonPath, jsPath, globalName) {
     return fetchJson(jsonPath).then(function (json) {
       if (json) { return { value: json, source: jsonPath }; }
-      return loadScriptOnce('fallback-' + jsPath, jsPath).then(function (ok) {
+      return loadScriptOnce('fallback-' + jsPath, withVersion(jsPath)).then(function (ok) {
         var value = ok ? global[globalName] : null;
         return { value: value || null, source: value ? jsPath + '（本地兜底）' : '不可用' };
       });
     });
   }
 
+  /* ------------------------------------------------------- 主库加载（含分片） */
+
+  /** 清单里的分片：并行取回所有 JSON，顺序拼接成一个数组（任意一片失败就整体回退到 .js） */
+  function loadJsonParts(manifest) {
+    var files = manifest.parts.map(function (part) {
+      return typeof part === 'string' ? part : (part.file || part.script);
+    }).filter(Boolean);
+    if (!files.length) { return Promise.resolve(null); }
+    return Promise.all(files.map(function (file) { return fetchJson(file); })).then(function (chunks) {
+      var ok = chunks.every(function (chunk) { return Array.isArray(chunk); });
+      if (!ok) { return null; }
+      return { value: Array.prototype.concat.apply([], chunks), source: files.join(' + ') };
+    });
+  }
+
+  /** file:// 兜底：anime.js 里要么是完整数组，要么是一串分片脚本地址 */
+  function loadFromScripts() {
+    return loadScriptOnce('fallback-data/anime.js', withVersion('data/anime.js')).then(function (ok) {
+      if (!ok) { return { value: null, source: '不可用' }; }
+      if (Array.isArray(global.__ANIME_DATA__)) {
+        return { value: global.__ANIME_DATA__, source: 'data/anime.js（本地兜底）' };
+      }
+      var parts = global.__ANIME_PARTS__;
+      if (!Array.isArray(parts) || !parts.length) { return { value: null, source: '不可用' }; }
+      return parts.reduce(function (chain, src, i) {
+        return chain.then(function (acc) {
+          return loadScriptOnce('fallback-part-' + i, withVersion(src)).then(function (loaded) {
+            var chunk = loaded ? global['__ANIME_PART_' + (i + 1) + '__'] : null;
+            return acc.concat(Array.isArray(chunk) ? chunk : []);
+          });
+        });
+      }, Promise.resolve([])).then(function (list) {
+        return {
+          value: list.length ? list : null,
+          source: list.length ? 'data/anime-1.js + …（本地兜底）' : '不可用'
+        };
+      });
+    });
+  }
+
+  function loadAnime() {
+    return fetchJson('data/anime.json').then(function (json) {
+      if (Array.isArray(json)) { return { value: json, source: 'data/anime.json' }; }
+      if (json && Array.isArray(json.parts) && json.parts.length) {
+        return loadJsonParts(json).then(function (merged) { return merged || loadFromScripts(); });
+      }
+      return loadFromScripts();
+    });
+  }
+
   function load() {
     if (cache.anime) { return Promise.resolve(cache.anime); }
-    return loadPair('data/anime.json', 'data/anime.js', '__ANIME_DATA__').then(function (r) {
+    return loadAnime().then(function (r) {
       cache.anime = Array.isArray(r.value) ? r.value : [];
       cache.animeSource = r.source;
       return cache.anime;

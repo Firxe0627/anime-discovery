@@ -1,6 +1,6 @@
 # AnimeDiscovery · 番组发现
 
-纯前端的「动漫发现 / 追番记录」静态站：**539 部**精选番剧资料库（真实封面）、本季热门、
+纯前端的「动漫发现 / 追番记录」静态站：**3174 部**番剧资料库（2005–2026 年，真实封面）、本季热门、
 年份轴与季度表、多维筛选与可分享链接、站内详情页与官方 PV、追番四态管理与进度、
 数据导入导出与分享码。线上地址：**<https://firxe0627.github.io/anime-discovery/>**
 
@@ -29,7 +29,7 @@ node serve.js          # 零依赖服务器，无需 npm install；换端口：n
 
 | 页面 | 说明 |
 | --- | --- |
-| 首页 | 本季热门快照 23 部（全站内详情，附「查看本季全部」）、539 部海报墙、搜索 + 分类 / 年份 / 季度 / 制作公司（可搜索下拉）/ 类型 / 排序 一套筛选（选项旁带当前命中数量）、可逐条去掉的条件标签、随机一部、继续看 |
+| 首页 | 本季热门快照 23 部（全站内详情，附「查看本季全部」）、3174 部海报墙（每批 48 部渲染）、搜索 + 分类 / 年份 / 季度 / 制作公司（可搜索下拉）/ 类型 / 排序 一套筛选（选项旁带当前命中数量，0 命中灰掉或隐藏）、可逐条去掉的条件标签、随机一部、继续看 |
 | 详情 | 大封面、中文速览 + 中文简介 + 英文简介（默认收起）、标签、分数、制作公司、集数进度、追番状态、数据来源徽章、官方 PV（点击才加载）、同系列时间轴、相关推荐、MAL / Bangumi / AniList 外链 |
 | 我的追番 | 想看 / 在看 / 看完 / 弃番 + 计数、按集进度、继续看、猜你也想看、导出 / 导入 JSON、复制分享码、清空 |
 | 关于 | 数据来源与署名、PV 说明、不做什么、正版平台指引、版权免责 |
@@ -45,22 +45,27 @@ node serve.js          # 零依赖服务器，无需 npm install；换端口：n
 
 ## 数据来源与重新抓取
 
-主资料 **AniList GraphQL**（名称、封面 URL、简介、分数、集数、年份、季节、制作公司、relations、官方 PV id），
-中文名与中文简介 **Bangumi**（`api.bgm.tv/v0/search/subjects`，带 User-Agent，间隔 ≥1 秒），
-Jikan 作为可选回退（本次运行时持续 504，未参与数据）。
+主资料 **AniList GraphQL**（名称、封面 URL、简介、分数、集数、年份、季节、制作公司、relations、官方 PV id）——
+按年份轴逐年分页（2005–2026，每年取热度靠前的作品，只收 TV / 剧场版 / ONA），
+中文名与中文简介 **Bangumi**（带 User-Agent，间隔 ≥1 秒；v0 搜索接口不可用时会自动切到同一来源的旧版搜索接口），
+Jikan 作为可选回退（只在缺 MAL id 时查询，连续失败自动熔断；本次运行时持续 504，未参与数据）。
 
 ```powershell
-node work/fetch-anime-data.mjs                   # 目标 520 部，走 work/api-cache 缓存
-node work/fetch-anime-data.mjs --no-cache        # 重新请求 API
-node work/fetch-anime-data.mjs --only=trending   # 只更新热门列表
-node work/fetch-anime-data.mjs --skip-bangumi    # 跳过中文补全
+node work/fetch-anime-data.mjs                   # 默认：2005–2026 每年 150 部，走 work/api-cache 缓存
+node work/fetch-anime-data.mjs --per-year=200     # 改每年条数
+node work/fetch-anime-data.mjs --years=2006-2026  # 改年份区间
+node work/fetch-anime-data.mjs --no-cache         # 重新请求 API
+node work/fetch-anime-data.mjs --only=trending    # 只更新热门列表
+node work/fetch-anime-data.mjs --skip-bangumi     # 跳过中文补全
 ```
 
-脚本间隔 ≥1.1 秒、429/403/5xx 退避重试、单次 20 秒超时；条数不足 300 时保留旧 JSON 不覆盖；
+脚本间隔 ≥1.1 秒、429/403/5xx 退避重试、单次 20 秒超时、失败缓存 10 分钟；
+条数低于现有库 80% 时保留旧 JSON 不覆盖；主库按 UTF-8 字节切成 < 3MB 的分片，前端取回后合并；
 **只保存文本与图片 / PV 的视频 id，不下载图片或视频**；运行报告写入 `work/fetch-report.md`。
 
-本次规模：539 部（TV 481 / 剧场版 38 / ONA 20，2005 年至今），
-其中 473 部有中文名、471 部有中文简介、520 部有官方 PV；没有中文资料时显示原名或英文简介，不做机翻。
+本次规模：3174 部（TV 2422 / 剧场版 521 / ONA 231，2005–2026 年，22 个年份无缺失），
+其中 2546 部有中文名、2545 部有中文简介、2206 部有官方 PV；
+没有中文资料时显示原名或英文简介，不做机翻。
 
 ## 项目结构
 
@@ -77,7 +82,8 @@ node work/fetch-anime-data.mjs --skip-bangumi    # 跳过中文补全
 │   └── plan.md                  最初的实现计划（过程文档）
 └── outputs/anime-discovery/     站点成品（HTML + CSS + 原生 JS，无构建步骤）
     ├── index.html / detail.html / mylist.html / about.html
-    ├── data/anime.json + anime.js           539 部资料（+ file:// 兜底）
+    ├── data/anime.json（分片清单）+ anime-1..3.json   主库 3174 部（每个 < 3MB）
+    ├── data/anime.js + anime-1..3.js        同内容 JS，file:// 兜底
     ├── data/trending.json + trending.js     本季热门 23 条（+ 兜底）
     ├── assets/css/style.css
     ├── assets/js/{data,store,ui,home,detail,mylist}.js
@@ -96,7 +102,7 @@ node work/fetch-anime-data.mjs --skip-bangumi    # 跳过中文补全
   图裂 / 离线自动回退文字占位封面；列表使用骨架屏，卡片分批渲染。
 - PV 仅在详情页、仅有官方 trailer 时出现，点击后才插入 iframe 并默认静音；列表页无任何视频加载。
 - 响应式：390px 实测无横向溢出；深色主题、动效克制并遵循 `prefers-reduced-motion`。
-- **不使用任何第三方离线番剧大数据库**：主库为脚本按热度精选的 539 条，
+- **不使用任何第三方离线番剧大数据库**：主库为脚本按年份逐年抓取的 3174 条，
   用户放入 `work/datasets/` 的原始数据集已被 gitignore，不进入仓库。
 
 ## 更新流程
