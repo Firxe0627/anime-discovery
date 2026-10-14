@@ -1,8 +1,8 @@
 # 番组发现 AnimeDiscovery
 
-纯前端的「动漫发现 / 追番记录」静态站：**3174 部**番剧资料库（2005–2026 年，真实封面）、本季热门、
+纯前端的「动漫发现 / 追番记录」静态站：**3194 部**番剧资料库（2005–2026 年，真实封面）、本季热门（每周自动更新）、
 年份轴与季度表、分类 / 制作公司 / 类型筛选、可分享的筛选链接、站内详情页、
-详情页官方 PV、追番四态管理与进度、数据导入导出与分享码。
+详情页官方 PV 与「去哪看正片」正版平台链接、追番四态管理与进度、数据导入导出与分享码。
 
 > **本站只做信息展示。** 资料来自公开 API（主资料 **AniList**，中文名与中文简介来自 **Bangumi**），
 > 封面直接引用原站图片 URL，PV 使用 AniList 标注的**官方 YouTube** 视频嵌入。
@@ -15,7 +15,7 @@
 **<https://firxe0627.github.io/anime-discovery/>**
 
 GitHub Pages 发布，工作流 `.github/workflows/deploy-pages.yml` 在每次推送到 `main` 时
-把本目录（`outputs/anime-discovery`）重新部署。仓库：<https://github.com/Firxe0627/anime-discovery>
+把本目录（`outputs/anime-discovery`）重新部署；`.github/workflows/refresh-trending.yml` 每周一自动更新「本季热门」后也会触发一次部署。仓库：<https://github.com/Firxe0627/anime-discovery>
 
 ## 本地预览
 
@@ -35,8 +35,8 @@ node serve.js          # 零依赖，无需 npm install；换端口：node serve
 
 | 页面 | 说明 |
 | --- | --- |
-| `index.html` 首页 | 本季热门快照（23 部，全部站内详情，附「查看本季全部」）、3174 部海报墙（每批 48 部渲染）、搜索 + 分类 / 年份 / 季度 / 制作公司（可搜索下拉）/ 类型 / 排序 一套筛选（每个选项旁显示当前命中数量，0 命中灰掉或隐藏）、可逐条去掉的条件标签、随机一部、继续看 |
-| `detail.html` 详情 | 大封面、中文速览、中文简介 + 英文简介（默认收起）、标签、分数与收藏数、制作公司、集数进度、追番状态、数据来源徽章、官方 PV、同系列时间轴、相关推荐、MAL / Bangumi / AniList 外链 |
+| `index.html` 首页 | 本季热门快照（22 部，全部站内详情，附「查看本季全部」；过季时标出「已过季」并给「看当前季度」入口）、3194 部海报墙（每批 48 部渲染）、搜索 + 分类 / 只看（有中文名 · 有官方 PV · 连载中）/ 年份 / 季度 / 制作公司（可搜索下拉）/ 类型 / 排序 一套筛选（每个选项旁显示当前命中数量，0 命中灰掉或隐藏）、可逐条去掉的条件标签、随机一部、继续看 |
+| `detail.html` 详情 | 大封面、中文速览、中文简介 + 英文简介（默认收起）、标签、分数与热度（AniList 加入列表人数）、制作公司、首播日期与单集时长、集数进度、追番状态、数据来源徽章、官方 PV、同系列时间轴、相关推荐、MAL / Bangumi / AniList 外链、「去哪看正片」（正版平台链接 + 站内搜索） |
 | `mylist.html` 我的追番 | 想看 / 在看 / 看完 / 弃番 + 计数、按集进度、继续看、猜你也想看、导出 / 导入 JSON、复制分享码、清空 |
 | `about.html` 关于 | 数据来源与署名、PV 说明、不做什么的清单、正版平台指引、版权与免责声明 |
 
@@ -50,7 +50,8 @@ node serve.js          # 零依赖，无需 npm install；换端口：node serve
   0 部会被灰掉（分类 chip）或从下拉里隐藏，避免点出一片空白。
 - **公司名唯一匹配就自动套用**：搜索框里输入能唯一对上的公司名（如 `京阿尼`、`京都动画`、`Kyoto Animation`、`MAPPA`、`Bones`、`WIT Studio`…），
   会自动套上「制作公司」筛选并提示；匹配到多家时只提示，不改筛选条件。
-- **筛选可分享**：条件写入网址 `?q= &genre= &year= &season= &studio= &format= &sort=`，可直接复制分享；
+- **只看开关**：「有中文名 / 有官方 PV / 连载中」三个可叠加的开关，同样带命中数量，写进网址 `?cn=1&pv=1&airing=1`。
+- **筛选可分享**：条件写入网址 `?q= &genre= &year= &season= &studio= &format= &sort= &cn= &pv= &airing=`，可直接复制分享；
   同时写进 localStorage，从详情页返回不丢筛选与滚动位置，浏览器前进 / 后退也能还原。
 - **条件标签**：结果区顶部显示「共 N 部」，下面每颗标签（搜索词 / 分类 / 年份 / 季度 / 公司 / 类型 / 排序）都能单独去掉，
   旁边有「清除全部」；手机端筛选收进「筛选」按钮，这一行标签就是已选条件摘要。
@@ -58,9 +59,13 @@ node serve.js          # 零依赖，无需 npm install；换端口：node serve
 - **分批渲染**：每批 48 部，接近列表底部自动加载；还有剩余时按钮显示「显示更多（还剩 X 部）」，一批能装下就不显示按钮。
 - **随机一部**：在当前筛选结果里随机，快捷键 `R`；当前结果为 0 部时只提示「先清除筛选再随机」，不会跳到看不见的条目。
   快捷键 `/` 聚焦搜索框；搜索框（或下拉）聚焦时按 `r` 不会触发随机。
-- **本季热门**：卡片全部进站内详情；标题下的小字说明这是**上一次抓取的快照**，
-  **不会随新一季自动更换**，有生成时间就显示（本地时间），没有就沿用数据里的季节文案；
+- **本季热门**：卡片全部进站内详情；标题下的小字说明这是**上一次抓取的快照**（每周一自动更新），
+  有生成时间就显示（本地时间）；快照季度与今天所在季度不同时，标题改成「热门快照 · 某季（已过季）」，
+  并多出「看 当前季度」按钮（库里有该季作品才显示）；
   「查看本季全部」会套上该季节的年份 + 季度筛选并滚到列表，该季在库里没有作品时不显示这个按钮。
+- **去哪看正片**：详情页先列 AniList 收录的正版平台链接（括号里是地区 / 语言），再给哔哩哔哩 / 巴哈姆特动画疯 / Crunchyroll 的站内搜索按钮；
+  都是新标签页打开的站外链接，搜索不保证有上架，本站不提供播放。
+- **相关推荐**：按分类 + 类型标签 + 制作公司加权（与「猜你也想看」同一套），排除时间轴里已列出的同系列作品。
 - **PV**：只有 AniList 标注的官方 YouTube trailer 才显示；先给「播放 PV」按钮，点击后才插入 iframe 并默认静音；
   列表页与详情页初次加载都不含任何 `iframe`，也不自动播放。
 - **追番**：收藏、四种状态（未手动设置时按进度推导：全看完→看完，看过若干集→在看，否则→想看）、
@@ -73,9 +78,9 @@ node serve.js          # 零依赖，无需 npm install；换端口：node serve
 ### 两个容易误解的地方
 
 - **某家公司能搜到几部，取决于本站库，不是该社的全部作品。**
-  资料库是脚本按年份逐年挑选的 3174 部（每年取热度靠前的作品），所以「京都动画 N 部」的意思是
+  资料库是脚本按年份逐年挑选的 3194 部（每年取热度靠前的作品），所以「京都动画 N 部」的意思是
   「本站库里收录了 N 部京都动画的作品」，不代表京都动画只做过 N 部。换一家公司同理。
-- **「本季热门」是抓取时的快照，需要重新跑脚本才会更新。**
+- **「本季热门」是抓取时的快照，每周一自动更新一次（也可手动重跑脚本）。**
   它是 `data/trending.json` 里的固定列表（脚本运行时按 AniList 当时的热度取一次），
   不会随着新一季自动更换；想更新就重新执行下面「重新跑数据脚本」里的命令（`--only=trending` 只更新热门）。
 
@@ -83,20 +88,22 @@ node serve.js          # 零依赖，无需 npm install；换端口：node serve
 
 | 内容 | 来源 |
 | --- | --- |
-| 名称（原名 / 罗马字 / 英文）、封面 URL、简介、分数与收藏数、集数、年份、季节、放送状态、类型标签、制作公司 | **AniList GraphQL**（批量分页） |
+| 名称（原名 / 罗马字 / 英文）、封面 URL、简介、分数与热度、集数、单集时长、首播日期、年份、季节、放送状态、类型标签、制作公司 | **AniList GraphQL**（批量分页） |
+| 本站分类（热血 / 日常 / 奇幻 / 治愈 / 恋爱 / 科幻 / 悬疑） | AniList genres + 主要 tags（rank ≥ 60、非剧透）换算，tags 不落盘 |
+| 正版平台链接 | AniList `externalLinks` 里 `type == STREAMING` 且未停用的条目（只存站点名、URL、语言） |
 | 中文名、中文简介 | **Bangumi**（`api.bgm.tv/v0/search/subjects`，带 UA，间隔 ≥1 秒） |
 | 同系列关系（前作 / 续作 / 剧场版等） | AniList `relations` |
 | 官方 PV | AniList `trailer`（仅当 `site == youtube`，只保存视频 id） |
 | MAL 作品页链接 | AniList `idMal` → `https://myanimelist.net/anime/<id>` |
 | Bangumi 作品页链接 | Bangumi subject id → `https://bgm.tv/subject/<id>` |
-| Jikan（MyAnimeList 公开 API） | 仅在缺少 MAL id 时兜底查询的可选回退来源；连续失败会自动熔断，本次运行时持续 504，未参与数据 |
+| Jikan（MyAnimeList 公开 API） | 仅在缺少 MAL id 时兜底查询的可选回退来源；连续失败会自动熔断；2026-10-14 这次抓取没有用到 |
 
 **本次抓取实况**（详见 `work/fetch-report.md` 与 `work/qa.md`）：
-3174 部（2005–2026 年，TV 2422 / 剧场版 521 / 网络动画 231）中，2546 部有中文名、
-2545 部有中文简介、2206 部有官方 PV、2143 部有同系列关系；命中 Bangumi 共 2578 条。
+3194 部（2005–2026 年，TV 2439 / 剧场版 521 / 网络动画 234）中，2949 部有中文名、
+2957 部有中文简介、2228 部有官方 PV、2154 部有同系列关系、2529 部有正版平台链接、3171 部有单集时长；命中 Bangumi 共 3000 条。
 没有中文资料的作品显示日文原名或英文简介，**不做机器翻译、不编造内容**。
-抓取当天 Bangumi 的 v0 搜索接口整体返回 500，脚本自动切到同一来源的旧版搜索接口
-（命中 1382 次）+ 条目详情接口（1250 次）取中文简介，报告里如实记录。
+2026-10-14 重新抓取时 Bangumi v0 搜索接口正常；改进后的匹配规则（全角 / 中点归一化、标题变体搜索、首播日期核对）
+让中文名从 2546 部增加到 2949 部（剧场版从 335 部增加到 454 部），已有的中文名一条未改，报告见 `work/fetch-report.md`。
 
 ## 重新跑数据脚本
 
@@ -109,7 +116,7 @@ node work/fetch-anime-data.mjs --per-year=200     # 改每年条数
 node work/fetch-anime-data.mjs --years=2006-2026  # 只跑指定年份区间
 node work/fetch-anime-data.mjs --limit=450        # 限制总条数
 node work/fetch-anime-data.mjs --no-cache         # 忽略缓存重新请求
-node work/fetch-anime-data.mjs --only=trending    # 只更新「本季 / 热门」
+node work/fetch-anime-data.mjs --only=trending    # 只更新「本季 / 热门」（库里没有的新番一并并入主库并补中文）
 node work/fetch-anime-data.mjs --skip-bangumi     # 只跑 AniList，跳过中文补全
 ```
 
@@ -117,13 +124,17 @@ node work/fetch-anime-data.mjs --skip-bangumi     # 只跑 AniList，跳过中�
 
 - 主源 **AniList**：按年份轴逐年分页（`startDate_greater/lesser` + `sort: POPULARITY_DESC`，
   `format_in: [TV, MOVIE, ONA]`，`isAdult: false`），2005–2026 年每年取前 N 部，保证每一年都有覆盖。
-- 中文名 / 中文简介走 **Bangumi**：优先 v0 搜索接口，接口整体不可用时自动切到旧版搜索接口
+- 中文名 / 中文简介走 **Bangumi**：匹配规则是「同名」（先做 NFKC 全角转半角、去中点等归一化，也认去掉括号附注的写法）
+  或「首播日期相同（±1 天）且标题互相包含」；原名搜不到时再用去括号 / 主标题等变体搜索，变体只接受严格匹配。
+  优先 v0 搜索接口，接口整体不可用时自动切到旧版搜索接口
   （`/search/subject`）+ 条目详情接口；连续失败先冷却 60 秒，冷却两轮仍不可用就熔断，不长时间空等。
 - 请求间隔 ≥ 1100ms；429 / 403 / 5xx 按 `Retry-After` 或指数退避（2→4→8→16 秒）重试；
   单次请求 20 秒超时；失败结果缓存 10 分钟（期间不再重复打同一个 key），成功结果缓存 14 天（`work/api-cache/`，已 gitignore）。
 - 可选回退 **Jikan**：只在某条资料缺少 MAL id 时查询，连续失败自动熔断。
 - 筛选：仅 TV / Movie / ONA，年份 2005–2026，按罗马字标题去重；时长 ≤6 分钟的短片 / CM / PV 不收（不要短篇广告）；
-  热门条目会并入主库，保证首页点得进站内详情；旧库里这次没重新拉到的条目会保留，资料库只增不减。
+  热门条目会并入主库（`--only=trending` 也一样），保证首页点得进站内详情；旧库里这次没重新拉到的条目会保留，资料库只增不减。
+- **id 稳定**：旧库条目永远沿用原 id（追番记录以 id 为键），新条目只用没被占用的 slug，撞名时用 `slug-anilistId`。
+- **分类**：每次重跑都按 genres + tags 用同一规则重算，不沿用旧分类。
 - 健康检查：条数低于现有库的 80%（且不少于 300）或热门 < 10 条时判定抓取不完整，**保留旧 JSON 不覆盖**，只写报告。
 - 写入：按 UTF-8 字节切分，单个文件 < 3MB；单文件时 `data/anime.json` 就是数组，拆文件时它是分片清单。
 - **只保存文本与图片 / PV 的视频 id，绝不下载图片或视频。**
@@ -144,13 +155,14 @@ node work/fetch-anime-data.mjs --skip-bangumi     # 只跑 AniList，跳过中�
 | `anilistId` / `malId` / `bgmId` | 三个站点的条目 id（外部链接在前端拼接） |
 | `name` / `name_romaji` / `name_en` / `name_cn` | 原名 / 罗马字 / 英文名 / 中文名（可能为 `null`） |
 | `cover` / `coverSmall` | 封面图片 URL（不下载到仓库） |
-| `summary_en` / `summary_cn` / `summary_cn_short` | 英文简介 / 中文简介 / 本站编辑的中文速览（仅早期 38 部） |
+| `summary_en` / `summary_cn` / `summary_cn_short` | 英文简介 / 中文简介 / 本站编辑的中文速览（仅早期少数条目，现存 12 部） |
 | `score` / `scoredBy` | 分数（AniList 百分制 ÷ 10）/ 收藏数 |
-| `genres` / `categories` | 原始类型标签 / 本站分类（热血·日常·奇幻·治愈·科幻·悬疑，用于筛选） |
-| `episodes` / `duration` / `year` / `season` / `format` / `status` | 集数（可能为 `null`）/ 单集时长 / 年份 / 季节 / TV·MOVIE·ONA / 放送状态 |
+| `genres` / `categories` | 原始类型标签 / 本站分类（热血·日常·奇幻·治愈·恋爱·科幻·悬疑，最多 3 个，可能为空，用于筛选） |
+| `episodes` / `duration` / `startDate` / `year` / `season` / `format` / `status` | 集数（可能为 `null`）/ 单集时长（分钟）/ 首播日期（`YYYY-MM-DD`，可能只有年或年月）/ 年份 / 季节 / TV·MOVIE·ONA / 放送状态 |
 | `studios` | 制作公司（前端有中文名映射） |
 | `relations` | 同系列关系（`relationType` + 目标作品名 / 年份 / 格式 / AniList id） |
 | `trailer` | 官方 YouTube 视频 id（没有则为 `null`） |
+| `streaming` | 正版平台链接数组 `[{ site, url, language }]`（来自 AniList，没有则为空数组） |
 | `emoji` / `palette` | 文字兜底封面用的图标与渐变色 |
 
 `data/trending.json`：`{ generatedAt, source, season, items: [{ rank, id, name, name_cn, cover, score, ... }] }`，
@@ -170,7 +182,7 @@ node work/fetch-anime-data.mjs --skip-bangumi     # 只跑 AniList，跳过中�
 | `outputs/anime-discovery/data/anime.json` | 主库清单（单文件运行时这里直接是数组） |
 | `outputs/anime-discovery/data/anime-1.json` ~ `anime-3.json` | 主库分片，每个 < 3MB，前端取回后合并 |
 | `outputs/anime-discovery/data/anime.js` + `anime-1.js` ~ `anime-3.js` | 同内容 JS，供 `file://` 兜底 |
-| `outputs/anime-discovery/data/trending.json` | 本季 / 热门 23 条 |
+| `outputs/anime-discovery/data/trending.json` | 本季 / 热门 22 条 |
 | `outputs/anime-discovery/data/trending.js` | 同内容 JS 兜底 |
 | `outputs/anime-discovery/assets/css/style.css` | 深色主题、封面、骨架屏、时间轴、PV、响应式 |
 | `outputs/anime-discovery/assets/js/data.js` | 数据加载与字段取值（含公司中文名 / 别名匹配、筛选状态与网址参数、推荐算法） |
@@ -181,6 +193,7 @@ node work/fetch-anime-data.mjs --skip-bangumi     # 只跑 AniList，跳过中�
 | `outputs/anime-discovery/assets/js/mylist.js` | 我的追番：状态筛选、继续看、推荐、数据管理 |
 | `outputs/anime-discovery/serve.js` | 零依赖本地静态服务器（预览用，非运行必需） |
 | `work/fetch-anime-data.mjs` | 数据抓取脚本（AniList + Bangumi，可选 Jikan） |
+| `.github/workflows/refresh-trending.yml` | 每周一自动跑 `--only=trending` 并触发部署 |
 | `work/fetch-report.md` | 最近一次抓取报告 |
 | `work/qa.md` | 阶段 A–E 自测记录与已知限制 |
 | `work/plan.md` | 最初的实现计划（过程文档） |

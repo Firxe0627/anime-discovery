@@ -188,10 +188,33 @@
     return wrap;
   }
 
-  /** 「去哪看」：到正版平台站内搜索本作（站外搜索，不保证有上架；本站不提供播放） */
+  function extLink(label, url, title) {
+    var a = el('a', 'btn btn-sm btn-ext', label);
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.title = title;
+    return a;
+  }
+
+  /**
+   * 「去哪看」：先列 AniList 收录的正版平台链接，再给正版平台的站内搜索兜底
+   * （站外搜索不保证有上架；本站不提供播放）
+   */
   function watchBox() {
     var box = el('div', 'watch-box');
     box.appendChild(el('h3', null, '去哪看正片'));
+
+    var official = D.streamingLinks(anime);
+    if (official.length) {
+      var offRow = el('div', 'link-row');
+      official.forEach(function (link) {
+        offRow.appendChild(extLink(link.label + ' ↗', link.url, '在新标签页打开 ' + link.label + ' 的作品页（AniList 收录的正版平台）'));
+      });
+      box.appendChild(offRow);
+      box.appendChild(el('p', 'faint', '以上为 AniList 收录的正版平台链接，括号里是面向的地区 / 语言，实际能否观看以平台为准。'));
+    }
+
     var row = el('div', 'link-row');
     D.watchSearchLinks(anime).forEach(function (link) {
       var a = el('a', 'btn btn-sm btn-ext', '在' + link.label + '搜索 ↗');
@@ -206,7 +229,7 @@
     row.appendChild(guide);
     box.appendChild(row);
     box.appendChild(el('p', 'faint',
-      '以上是站外搜索，不保证该平台已上架本作，也可能有地区限制；本站不提供播放。'));
+      (official.length ? '搜索按钮' : '以上') + '是站外搜索，不保证该平台已上架本作，也可能有地区限制；本站不提供播放。'));
     return box;
   }
 
@@ -433,6 +456,7 @@
       ['罗马字', anime.name_romaji || '—'],
       ['英文名', anime.name_en || '—'],
       ['放送', D.yearText(anime)],
+      ['首播', D.startDateText(anime) || '—'],
       ['制作公司', (anime.studios || []).map(D.studioLabel).join(' / ') || '—'],
       ['类型', D.formatText(anime)],
       ['状态', D.statusText(anime)],

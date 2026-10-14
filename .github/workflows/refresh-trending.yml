@@ -1,0 +1,55 @@
+name: Refresh trending snapshot
+
+# 每周自动跑一次 `--only=trending`：更新「本季热门」快照，库里没有的新番会一并并入主库。
+# 只改 outputs/anime-discovery/data/ 与 work/fetch-report.md；数据目录没有变化就不提交
+# （trending.json 带生成时间与分数，实际上几乎每周都会有一次提交）。
+# 用 GITHUB_TOKEN 推送不会触发 push 事件，所以推送后显式触发一次 Pages 部署（workflow_dispatch 允许由 GITHUB_TOKEN 触发）。
+on:
+  schedule:
+    - cron: '0 3 * * 1'   # 每周一 03:00 UTC（北京时间 11:00）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: refresh-trending
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Fetch trending (AniList + Bangumi for new titles only)
+        run: node work/fetch-anime-data.mjs --only=trending
+
+      - name: Commit if changed
+        id: commit
+        run: |
+          git add outputs/anime-discovery/data work/fetch-report.md
+          if git diff --cached --quiet -- outputs/anime-discovery/data; then
+            echo "热门快照没有变化，不提交。"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(data): 每周自动更新本季热门快照"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger Pages deploy
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-pages.yml --ref main

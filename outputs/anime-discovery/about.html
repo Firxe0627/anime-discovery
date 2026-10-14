@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>关于本站 · 番组发现 AnimeDiscovery</title>
 <meta name="description" content="本站只做动漫信息展示与个人追番记录：资料来自 AniList 与 Bangumi，PV 为官方 YouTube 嵌入，封面版权归权利人，不提供在线播放。">
-<link rel="stylesheet" href="assets/css/style.css?v=20261014a">
+<link rel="stylesheet" href="assets/css/style.css?v=20261014b">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🌸</text></svg>">
 </head>
 <body data-page="about">
@@ -40,19 +40,22 @@
     <div class="card">
       <h2>这个站点做什么</h2>
       <ul>
-        <li>收录 <strong>3174 部</strong>番剧（TV 2422 / 剧场版 521 / 网络动画 231，2005–2026 年），
+        <li>收录 <strong>3194 部</strong>番剧（TV 2439 / 剧场版 521 / 网络动画 234，2005–2026 年），
           海报墙使用真实封面；按年份逐年取热度靠前的作品，保证每一年都有覆盖，
           不做“把几万条离线库整包塞进前端”的事。</li>
         <li>中文名与中文简介来自 Bangumi；没有中文资料时显示日文原名或英文简介，<strong>不做机器翻译、不编造</strong>。</li>
         <li>搜索与筛选收在同一条筛选栏：关键词搜索（中文 / 日文 / 英文 / 罗马字 / 制作公司；输入停顿 300ms 自动筛选，
           也可以按「搜索」或回车），加上分类、年份、季度、制作公司（可搜索下拉，支持「京都动画 / 京阿尼 / Kyoto Animation」这类中英别名）、
-          类型（TV / 剧场版 / 网络动画）与排序；每个选项旁都会显示当前条件下的命中数量，0 命中的选项会灰掉或隐藏。</li>
+          类型（TV / 剧场版 / 网络动画）与排序，以及「只看有中文名 / 有官方 PV / 连载中」开关；每个选项旁都会显示当前条件下的命中数量，0 命中的选项会灰掉或隐藏。</li>
+        <li>分类（热血 / 日常 / 奇幻 / 治愈 / 恋爱 / 科幻 / 悬疑）由 AniList 的类型与主要标签自动换算：
+          「治愈」只看「治愈系 / 萌系日常」标签，「恋爱」对应 Romance；一部作品最多 3 个分类，对不上的不硬分。</li>
         <li>某家公司在站内能搜到几部，取决于本项目的<strong>精选库</strong>收录了多少，<strong>不代表该公司的全部作品</strong>；
-          「本季热门」是抓取时留下的快照，需要重新跑脚本才会更新。</li>
-        <li>筛选条件写进网址（<code>?q= &amp;genre= &amp;year= &amp;season= &amp;studio= &amp;format= &amp;sort=</code>），可以直接分享给朋友；
+          「本季热门」是抓取时留下的快照，每周一由仓库的自动任务更新一次；快照与当前季度对不上时首页会标出「已过季」。</li>
+        <li>筛选条件写进网址（<code>?q= &amp;genre= &amp;year= &amp;season= &amp;studio= &amp;format= &amp;sort= &amp;cn= &amp;pv= &amp;airing=</code>），可以直接分享给朋友；
           从详情页返回时筛选与滚动位置都会保留。键盘：<code>/</code> 聚焦搜索框，<code>R</code> 在当前筛选结果里随机一部
           （搜索框聚焦时 <code>R</code> 不会触发）。</li>
-        <li>详情页有中文速览、完整简介（默认收起）、标签、分数、制作公司、集数进度、追番状态、数据来源徽章与同系列时间轴。</li>
+        <li>详情页有中文速览、完整简介（默认收起）、标签、分数、制作公司、首播日期与单集时长、集数进度、追番状态、数据来源徽章、同系列时间轴，
+          以及「去哪看正片」：AniList 收录的正版平台链接 + 哔哩哔哩 / 巴哈姆特动画疯 / Crunchyroll 的站内搜索（站外链接，本站不提供播放）。</li>
         <li>「本季 / 热门」区块展示近期热度最高的连载作品，点击同样进入站内详情页。</li>
         <li>我的追番支持想看 / 在看 / 看完 / 弃番、按集进度、继续看排序、猜你也想看、导出 / 导入 JSON 与分享码。</li>
       </ul>
@@ -72,20 +75,21 @@
       <ul class="legal-list">
         <li>
           <strong>AniList GraphQL（主资料源）</strong>
-          提供名称（原名 / 罗马字 / 英文）、封面 URL、简介、分数与收藏数、集数、年份、季节、
-          放送状态、类型标签、制作公司、同系列 relations，以及官方 PV 的 YouTube 视频 id。
+          提供名称（原名 / 罗马字 / 英文）、封面 URL、简介、分数与热度（加入列表人数）、集数、单集时长、首播日期、年份、季节、
+          放送状态、类型与标签（用于换算本站分类）、制作公司、同系列 relations、官方 PV 的 YouTube 视频 id，
+          以及正版平台链接（externalLinks 里标为 STREAMING 的条目，只存链接）。
         </li>
         <li>
           <strong>Bangumi（api.bgm.tv，中文源）</strong>
           提供中文名与中文简介。抓取时带 Bangumi 要求的 User-Agent，请求间隔 ≥1 秒；
+          匹配规则：同名（全角 / 半角、中点等写法差异会先归一化）或首播日期一致且标题互相包含才算命中；
           匹配不上就留空，前端自动显示原名或英文简介，绝不机器翻译。
-          本次抓取时 Bangumi 的 v0 搜索接口持续 500，脚本自动切到同一来源的旧版搜索接口
-          （<code>/search/subject</code>）+ 条目详情接口取中文简介。
+          v0 搜索接口不可用时，脚本会自动切到同一来源的旧版搜索接口（<code>/search/subject</code>）+ 条目详情接口。
         </li>
         <li>
           <strong>Jikan（可选回退）</strong>
           抓取脚本保留了 Jikan（MyAnimeList 公开 API）作为补充来源，只在某条资料缺少 MAL id 时兜底查询；
-          连续失败会自动熔断，不做无谓等待。本次运行时 Jikan 持续返回 504，熔断后未参与数据，抓取报告里如实记录。
+          连续失败会自动熔断，不做无谓等待；最近一次抓取（2026-10-14）没有用到 Jikan，抓取报告里如实记录。
         </li>
         <li>
           <strong>封面图片</strong>
@@ -94,7 +98,7 @@
         </li>
       </ul>
       <p class="faint" style="margin-top:14px">
-        本次数据规模：3174 部中 2546 部有中文名、2545 部有中文简介、2206 部有官方 PV、2143 部有同系列关系。
+        本次数据规模：3194 部中 2949 部有中文名、2957 部有中文简介、2228 部有官方 PV、2154 部有同系列关系、2529 部有 AniList 收录的正版平台链接。
         如果某个作品在数据源里匹配不到，脚本会跳过而不编造内容。
       </p>
     </div>
@@ -132,7 +136,9 @@
         <li><strong>巴哈姆特动画疯</strong>台湾地区的正版动画平台，需要登录并遵守其使用条款。</li>
       </ul>
       <p class="faint" style="margin-top:14px">
-        本站不会自动跳转到上述站点，请自行搜索并遵守各平台的服务条款与所在地法律。
+        每部作品的详情页有「去哪看正片」：先列 AniList 收录的正版平台链接（括号里是面向的地区 / 语言），
+        再给出上述平台的站内搜索按钮。搜索按钮只是帮你带上作品名，<strong>不保证该平台已上架</strong>，也可能有地区限制。
+        本站不会自动跳转，请遵守各平台的服务条款与所在地法律。
       </p>
 
       <h2 style="margin-top:22px">版权与免责声明</h2>
@@ -153,8 +159,8 @@
   </div>
 </footer>
 
-<script src="assets/js/data.js?v=20261014a"></script>
-<script src="assets/js/store.js?v=20261014a"></script>
-<script src="assets/js/ui.js?v=20261014a"></script>
+<script src="assets/js/data.js?v=20261014b"></script>
+<script src="assets/js/store.js?v=20261014b"></script>
+<script src="assets/js/ui.js?v=20261014b"></script>
 </body>
 </html>

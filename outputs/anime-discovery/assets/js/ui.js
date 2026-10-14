@@ -16,7 +16,7 @@
     ['#2b2a5e', '#5a2350'], ['#24406b', '#6b3050'], ['#1f4c5c', '#54306b'],
     ['#3a4a24', '#2b3f6b']
   ];
-  var CATEGORY_EMOJI = { '热血': '🔥', '日常': '☕', '奇幻': '✨', '治愈': '🌿', '科幻': '🛰️', '悬疑': '🔍' };
+  var CATEGORY_EMOJI = { '热血': '🔥', '日常': '☕', '奇幻': '✨', '治愈': '🌿', '科幻': '🛰️', '悬疑': '🔍', '恋爱': '💗' };
 
   function el(tag, className, text) {
     var node = document.createElement(tag);

@@ -14,13 +14,13 @@
   'use strict';
 
   /* 资源版本号：数据或脚本有更新就 +1，避免 GitHub Pages / 浏览器缓存混用新旧文件 */
-  var ASSET_VERSION = '20261014a';
+  var ASSET_VERSION = '20261014b';
 
   function withVersion(url) {
     return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + ASSET_VERSION;
   }
 
-  var CATEGORIES = ['全部', '热血', '日常', '奇幻', '治愈', '科幻', '悬疑'];
+  var CATEGORIES = ['全部', '热血', '日常', '奇幻', '治愈', '恋爱', '科幻', '悬疑'];
 
   var SEASON_ZH = { winter: '冬季', spring: '春季', summer: '夏季', fall: '秋季' };
   var STATUS_ZH = {
@@ -363,6 +363,32 @@
     return links;
   }
 
+  /* AniList externalLinks 的 language 字段 → 中文地区说明 */
+  var LANGUAGE_ZH = {
+    English: '英语', Japanese: '日本', Chinese: '中文', Korean: '韩国', Spanish: '西语',
+    Portuguese: '葡语', French: '法语', German: '德语', Italian: '意语', Russian: '俄语',
+    Thai: '泰语', Vietnamese: '越南', Indonesian: '印尼', Arabic: '阿拉伯语'
+  };
+
+  /** 正版平台链接（来自 AniList externalLinks 的 STREAMING，抓取时只存 URL）；没有就返回空数组 */
+  function streamingLinks(a) {
+    if (!a || !Array.isArray(a.streaming)) { return []; }
+    return a.streaming.filter(function (s) {
+      return s && s.url && /^https?:\/\//.test(s.url);
+    }).map(function (s) {
+      var lang = s.language ? (LANGUAGE_ZH[s.language] || s.language) : '';
+      return { label: s.site + (lang ? '（' + lang + '）' : ''), url: s.url };
+    });
+  }
+
+  /** 首播日期：YYYY-MM-DD / YYYY-MM / YYYY，没有就返回空串 */
+  function startDateText(a) {
+    var d = a && a.startDate;
+    if (!d) { return ''; }
+    var p = String(d).split('-');
+    return p[0] + ' 年' + (p[1] ? ' ' + Number(p[1]) + ' 月' : '') + (p[2] ? ' ' + Number(p[2]) + ' 日' : '');
+  }
+
   /**
    * 「去哪看」：在正版平台站内搜索本作的链接（站外搜索，不保证该平台有上架）。
    * 中文平台用中文名，Crunchyroll 用罗马字 / 英文名；本站不提供任何播放。
@@ -583,6 +609,8 @@
     tagsOf: tagsOf,
     externalLinks: externalLinks,
     watchSearchLinks: watchSearchLinks,
+    streamingLinks: streamingLinks,
+    startDateText: startDateText,
     trailerEmbedUrl: trailerEmbedUrl,
     sourceLabel: sourceLabel,
     searchText: searchText,

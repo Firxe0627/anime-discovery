@@ -823,8 +823,8 @@
 
     // 小字说明：这是抓取快照；有生成时间就显示，没有就沿用现有季节文案（不编造日期）
     var notes = [stale
-      ? '这是 ' + seasonLabel(target) + ' 的抓取快照，现在已是 ' + seasonLabel(now) + '，重新跑抓取脚本后才会更新'
-      : '这是上次抓取的快照，不会随新一季自动更换'];
+      ? '这是 ' + seasonLabel(target) + ' 的抓取快照，现在已是 ' + seasonLabel(now) + '，等下一次每周自动更新（或手动重跑抓取脚本）'
+      : '这是上次抓取的快照，每周一自动更新一次'];
     var stamp = formatStamp(trending.generatedAt);
     if (stamp) { notes.push('生成时间 ' + stamp + '（本地时间）'); }
     else if (trending.season) { notes.push(trending.season); }

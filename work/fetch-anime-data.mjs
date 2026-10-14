@@ -7,8 +7,9 @@
  * 数据来源
  *   - 主资料：AniList GraphQL —— 按「年份轴」分页（2005–2026，每年前 N 部，
  *     sort: POPULARITY_DESC，type: ANIME，format_in: [TV, MOVIE, ONA]，isAdult: false），
- *     每页 50；含封面 URL、简介、分数、集数 / 时长、年份 / 季节、制作公司、
- *     relations、官方 YouTube trailer id（只存视频 id，不下载视频）。
+ *     每页 50；含封面 URL、简介、分数、集数 / 时长 / 首播日期、年份 / 季节、制作公司、
+ *     relations、官方 YouTube trailer id（只存视频 id，不下载视频）、
+ *     正版平台链接（externalLinks 里的 STREAMING，只存 URL）、tags（只用于计算本站分类，不落盘）。
  *   - 中文名 / 中文简介：Bangumi（api.bgm.tv/v0/search/subjects，带 User-Agent，间隔 ≥1.1 秒）。
  *   - 可选回退：Jikan（api.jikan.moe）只在「Bangumi 没匹配上、且该条缺 MAL id」时
  *     补一个 MAL id；连续失败 3 次即熔断，本次运行不再调用（不做无谓等待）。
@@ -27,7 +28,10 @@
  *   node work/fetch-anime-data.mjs --years=2006-2026  # 改年份区间
  *   node work/fetch-anime-data.mjs --no-cache         # 忽略缓存重新请求
  *   node work/fetch-anime-data.mjs --skip-bangumi     # 只跑 AniList
- *   node work/fetch-anime-data.mjs --only=trending    # 只更新热门列表
+ *   node work/fetch-anime-data.mjs --only=trending    # 只更新热门列表（库里没有的新番会一并并入主库）
+ *
+ * id 规则
+ *   旧库条目永远沿用原 id（用户的追番记录以 id 为键）；新条目只用未被占用的 slug。
  *
  * 产物
  *   outputs/anime-discovery/data/anime.json（单文件时是数组，拆文件时是清单）+ anime-*.json
@@ -108,9 +112,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /* 运行统计（写进报告） */
 const stats = {
   net: 0, cacheHits: 0, failures: 0, bangumiHits: 0, jikanUsed: 0,
-  bgmLegacySearch: 0, bgmDetail: 0
-};
-let jikanFails = 0;
+  bgmLegacySearch: 0, bgmDetail: 0, bgmVariantHits: 0
+};let jikanFails = 0;
 let jikanBroken = false;
 let bgmFails = 0;               // Bangumi 连续失败次数
 let bgmCooldowns = 0;           // 连续失败触发过几次冷却
@@ -214,6 +217,8 @@ async function request(key, url, init, opts) {
 /* ---------------------------------------------------------------- AniList */
 
 const ANILIST = 'https://graphql.anilist.co';
+/* 查询字段有变动就改这里：缓存键带版本号，避免读到旧字段的缓存（例如没有 tags / externalLinks） */
+const ANILIST_QUERY_VERSION = 'v2';
 
 const MEDIA_FIELDS = `
   id idMal
@@ -224,8 +229,10 @@ const MEDIA_FIELDS = `
   episodes duration season seasonYear format status
   startDate { year month day }
   genres
+  tags { name rank isMediaSpoiler }
   studios(isMain: true) { nodes { name } }
   trailer { id site }
+  externalLinks { site url type language isDisabled }
   relations {
     edges {
       relationType
@@ -271,7 +278,7 @@ async function fetchYear(year, want) {
   let lastPage = 1;
   while (out.length < want && page <= lastPage) {
     const perPage = Math.min(PAGE_SIZE, want - out.length);
-    const data = await anilist(YEAR_BULK_QUERY, { page, perPage, from, to }, `anilist-year-${year}-${page}-${perPage}`);
+    const data = await anilist(YEAR_BULK_QUERY, { page, perPage, from, to }, `anilist-${ANILIST_QUERY_VERSION}-year-${year}-${page}-${perPage}`);
     if (!data || !data.Page) { log(`  ! ${year} 年第 ${page} 页失败，放弃该年剩余翻页`); break; }
     const media = data.Page.media || [];
     out.push(...media);
@@ -296,10 +303,43 @@ const stripHtml = (s) => String(s || '')
   .replace(/\s+\n/g, '\n')
   .trim();
 
-/** 归一化标题用于匹配：只保留拉丁字母、数字与日文 / 中文字符。 */
+/**
+ * 归一化标题用于匹配：先做 NFKC（全角字母 / 数字 / 符号 → 半角，Ⅱ → II），去掉中点「・」，
+ * 再只保留拉丁字母、数字与日文 / 中文字符。
+ */
 const normalize = (s) => String(s || '')
+  .normalize('NFKC')
   .toLowerCase()
+  .replace(/[\u30fb\u00b7]/g, '')
   .replace(/[^0-9a-z\u3040-\u30ff\u4e00-\u9fff]/g, '');
+
+/** 去掉括号里的附注，如「カノン (2006)」「（TV）」——同一部作品的标题写法差异 */
+const stripParen = (s) => String(s || '').replace(/[（(][^（）()]*[）)]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/**
+ * Bangumi 搜索关键词：原名优先；原名搜不到时再试「去括号附注」「全角转半角」「截掉副标题的主标题」。
+ * 变体只用于提高召回，最终仍要通过 pickBangumi 的严格匹配。
+ */
+function keywordVariants(rec) {
+  const base = rec.name || rec.name_romaji || rec.name_en;
+  const out = base ? [base] : [];
+  const add = (s) => {
+    const v = String(s || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
+    if (v.length >= 2 && !out.includes(v)) { out.push(v); }
+  };
+  if (rec.name) {
+    add(stripParen(rec.name));
+    add(rec.name);
+    add(rec.name.normalize('NFKC').replace(/\s*[~〜～\-–—:：].*$/, ''));
+  }
+  return out.slice(0, 3);
+}
+
+/** 两个日期（YYYY-MM-DD）相差不超过 1 天（AniList 与 Bangumi 偶尔差一天：深夜档 / 时区） */
+function sameDay(a, b) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a || '') || !/^\d{4}-\d{2}-\d{2}$/.test(b || '')) { return false; }
+  return Math.abs(Date.parse(a) - Date.parse(b)) <= 24 * 3600 * 1000;
+}
 
 const BGM_HEADERS = { Accept: 'application/json', 'User-Agent': UA };
 
@@ -323,7 +363,7 @@ async function bangumiSearch(keyword) {
 
   let candidates = null;
   if (!bgmV0Down) {
-    const json = await request(`bgm-search-${keyword}`, `${BANGUMI}/v0/search/subjects?limit=5`, {
+    const json = await request(`bgm-search10-${keyword}`, `${BANGUMI}/v0/search/subjects?limit=10`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...BGM_HEADERS },
       body: JSON.stringify({ keyword, filter: { type: [2] } })
@@ -341,9 +381,9 @@ async function bangumiSearch(keyword) {
   }
 
   if (!candidates) {
-    const legacyKey = `bgm-legacy-${keyword}`;
+    const legacyKey = `bgm-legacy10-${keyword}`;
     const legacy = await request(legacyKey,
-      `${BANGUMI}/search/subject/${encodeURIComponent(keyword)}?type=2&responseGroup=small&max_results=5`,
+      `${BANGUMI}/search/subject/${encodeURIComponent(keyword)}?type=2&responseGroup=small&max_results=10`,
       { headers: BGM_HEADERS }, { attempts: 2 });
     if (legacy && Array.isArray(legacy.list)) {
       candidates = legacy.list.map(mapLegacySubject);
@@ -385,23 +425,35 @@ async function bangumiSubject(id) {
 }
 
 /**
- * 匹配 Bangumi 条目：优先精确同名（日文原名 / 罗马字 / 英文名），
- * 其次唯一候选且年份相差 ≤1。匹配不上就返回 null（不做任何猜测）。
+ * 匹配 Bangumi 条目（匹配不上就返回 null，不做任何猜测）：
+ *   ① 精确同名（日文原名 / 罗马字 / 英文名，含去括号附注的写法；归一化后比较），且年份相差 ≤1；
+ *   ② 首播日期相同（±1 天）且两边标题互相包含（如「CLANNAD ~After Story~ …」与「CLANNAD 〜AFTER STORY〜」）；
+ *   ③ 只有用原名搜索时（allowSingle）：唯一候选且年份相差 ≤1。
  */
-function pickBangumi(candidates, media) {
+function pickBangumi(candidates, media, opts) {
   if (!candidates || !candidates.length) { return null; }
-  const titles = [media.title?.native, media.title?.romaji, media.title?.english]
-    .filter(Boolean).map(normalize);
-  let best = null;
-  for (const c of candidates) {
+  const raw = [media.title?.native, media.title?.romaji, media.title?.english].filter(Boolean);
+  const original = [...new Set(raw.map(normalize).filter(Boolean))];
+  // 去括号写法只当作补充：「トニカクカワイイ（シーズン2）」去括号后与第一季同名，必须再卡年份
+  const stripped = [...new Set(raw.map(stripParen).map(normalize).filter((t) => t && !original.includes(t)))];
+  const titles = original.concat(stripped);
+  // 同名也要年份相差 ≤1：同名不同年的多是重制版 / 前作（如 2020 TV 版与 2015 网络版同名）
+  const exact = candidates.find((c) => {
     const names = [c.name, c.name_cn].filter(Boolean).map(normalize);
-    const exact = names.some((n) => titles.includes(n));
     const yearOk = !c.date || !media.seasonYear
       || Math.abs(Number(String(c.date).slice(0, 4)) - media.seasonYear) <= 1;
-    if (exact && yearOk) { best = c; break; }
-    if (!best && exact) { best = c; }
+    return yearOk && names.some((n) => titles.includes(n));
+  });
+  if (exact) { return exact; }
+  if (media.startDate) {
+    const byDate = candidates.filter((c) => {
+      if (!sameDay(c.date, media.startDate)) { return false; }
+      const n = normalize(c.name);
+      return n.length >= 3 && titles.some((t) => t.length >= 3 && (t.includes(n) || n.includes(t)));
+    });
+    if (byDate.length === 1) { return byDate[0]; }
   }
-  if (best) { return best; }
+  if (opts && opts.allowSingle === false) { return null; }
   if (candidates.length === 1) {
     const c = candidates[0];
     const year = Number(String(c.date || '').slice(0, 4));
@@ -435,24 +487,57 @@ async function jikanFallback(rec) {
 
 /* -------------------------------------------------------------- 类型映射 */
 
+/**
+ * 本站分类：AniList genres（固定 18 个）+ 主要 tags（rank ≥ 60、非剧透）一起判断。
+ * 「治愈」只看 Iyashikei / 萌系日常标签；Drama 不再算进「治愈」，Romance 单独成「恋爱」。
+ * 一条都对不上就留空（不再硬塞进「日常」）。顺序即优先级，最多取 3 个。
+ */
 const CATEGORY_RULES = [
-  [/action|adventure|martial arts|super power|sports|mecha/i, '热血'],
-  [/slice of life|comedy|music|school|performing arts/i, '日常'],
-  [/fantasy|supernatural|magic|isekai|adventure|demons/i, '奇幻'],
-  [/drama|romance|iyashikei|healing/i, '治愈'],
-  [/sci-?fi|space|mecha|virtual reality|cyberpunk/i, '科幻'],
-  [/mystery|thriller|suspense|horror|psychological|crime/i, '悬疑']
+  { name: '热血', genres: ['Action', 'Sports', 'Mecha'], tags: ['Martial Arts', 'Super Power', 'Battle Royale'] },
+  { name: '奇幻', genres: ['Fantasy', 'Supernatural', 'Mahou Shoujo'], tags: ['Isekai', 'Magic', 'Demons', 'Mythology'] },
+  { name: '科幻', genres: ['Sci-Fi', 'Mecha'], tags: ['Space', 'Cyberpunk', 'Virtual World', 'Time Manipulation'] },
+  { name: '悬疑', genres: ['Mystery', 'Thriller', 'Psychological', 'Horror'], tags: ['Detective', 'Crime'] },
+  { name: '恋爱', genres: ['Romance'], tags: [] },
+  { name: '治愈', genres: [], tags: ['Iyashikei', 'Cute Girls Doing Cute Things'] },
+  { name: '日常', genres: ['Slice of Life', 'Comedy', 'Music'], tags: ['School Club', 'Workplace', 'Family Life'] }
 ];
+const TAG_MIN_RANK = 60;
 
-function categoriesOf(genres) {
-  const out = [];
-  CATEGORY_RULES.forEach(([re, name]) => {
-    if ((genres || []).some((g) => re.test(g)) && !out.includes(name)) { out.push(name); }
-  });
-  return out.slice(0, 3);
+function categoriesOf(genres, tags) {
+  const g = new Set(genres || []);
+  const t = new Set((tags || [])
+    .filter((x) => x && !x.isMediaSpoiler && (x.rank || 0) >= TAG_MIN_RANK)
+    .map((x) => x.name));
+  return CATEGORY_RULES
+    .filter((rule) => rule.genres.some((x) => g.has(x)) || rule.tags.some((x) => t.has(x)))
+    .map((rule) => rule.name)
+    .slice(0, 3);
 }
 
-const EMOJI_BY_CATEGORY = { '热血': '🔥', '日常': '☕', '奇幻': '✨', '治愈': '🌿', '科幻': '🛰️', '悬疑': '🔍' };
+/** 正版平台链接：AniList externalLinks 里 type == STREAMING 且未停用的条目（只存 URL，不嵌入任何播放） */
+function streamingOf(media) {
+  const seen = new Set();
+  const out = [];
+  for (const link of media.externalLinks || []) {
+    if (!link || link.type !== 'STREAMING' || link.isDisabled || !link.url || !/^https?:\/\//.test(link.url)) { continue; }
+    const key = `${link.site}|${link.language || ''}`;
+    if (seen.has(key)) { continue; }
+    seen.add(key);
+    out.push({ site: link.site, url: link.url, language: link.language || null });
+  }
+  return out;
+}
+
+const startDateOf = (m) => {
+  const d = m.startDate || {};
+  if (!d.year) { return null; }
+  const pad = (n) => String(n).padStart(2, '0');
+  return d.month ? `${d.year}-${pad(d.month)}${d.day ? `-${pad(d.day)}` : ''}` : String(d.year);
+};
+
+const EMOJI_BY_CATEGORY = {
+  '热血': '🔥', '日常': '☕', '奇幻': '✨', '治愈': '🌿', '科幻': '🛰️', '悬疑': '🔍', '恋爱': '💗'
+};
 const PALETTES = [
   ['#2f3a6b', '#7a2f52'], ['#1f5c58', '#3a3068'], ['#4a3a6b', '#a2415f'],
   ['#134a72', '#2f7a5a'], ['#5d2f78', '#c2417a'], ['#6b4a24', '#2f3f5c'],
@@ -525,7 +610,7 @@ function toRecord(media) {
   const genres = media.genres || [];
   const slug = slugify(media.title?.romaji || media.title?.english || '') || 'ani';
   const year = yearOf(media);
-  const cats = categoriesOf(genres);
+  const cats = categoriesOf(genres, media.tags);
   return {
     anilistId: media.id,
     malId: media.idMal || null,
@@ -543,8 +628,10 @@ function toRecord(media) {
     score: typeof media.averageScore === 'number' ? Math.round(media.averageScore) / 10 : null,
     scoredBy: media.popularity || null,
     genres,
-    categories: cats.length ? cats : ['日常'],
+    categories: cats,
     episodes: media.episodes || null,
+    duration: media.duration || null,
+    startDate: startDateOf(media),
     year,
     season: media.season ? String(media.season).toLowerCase() : null,
     format: media.format || null,
@@ -552,6 +639,7 @@ function toRecord(media) {
     studios: (media.studios?.nodes || []).map((n) => n.name),
     relations: relationsOf(media),
     trailer: trailerOf(media),
+    streaming: streamingOf(media),
     emoji: EMOJI_BY_CATEGORY[cats[0]] || '✨',
     palette: PALETTES[hashOf(media.id) % PALETTES.length],
     has_cn: false
@@ -624,9 +712,8 @@ function mergeCurated(rec, curated) {
     name_cn: old.name_cn || null,
     summary_cn: old.summary_cn || null,
     summary_cn_short: old.summary_cn_short || null,
-    emoji: old.emoji || rec.emoji,
+    // 分类与图标每次按最新 genres + tags 重算（规则改过，旧分类不再沿用）；配色沿用，封面占位不变
     palette: old.palette || rec.palette,
-    categories: old.categories?.length ? old.categories : rec.categories,
     has_cn: !!(old.name_cn || old.summary_cn)
   };
 }
@@ -688,12 +775,18 @@ async function enrichWithBangumi(entries) {
       rec.has_cn = true;
       stats.bangumiHits += 1;
     } else {
-      const keyword = rec.name || rec.name_romaji || rec.name_en;
-      const candidates = await bangumiSearch(keyword);
-      const hit = pickBangumi(candidates, {
-        title: { native: rec.name, romaji: rec.name_romaji, english: rec.name_en },
-        seasonYear: rec.year
-      });
+      // 原名优先；原名搜不到时再试标题变体（变体只接受严格匹配，不接受「唯一候选」兜底）
+      const variants = keywordVariants(rec);
+      let hit = null;
+      for (let i = 0; i < variants.length && !hit && !bgmBroken; i += 1) {
+        const candidates = await bangumiSearch(variants[i]);
+        hit = pickBangumi(candidates, {
+          title: { native: rec.name, romaji: rec.name_romaji, english: rec.name_en },
+          seasonYear: rec.year,
+          startDate: rec.startDate
+        }, { allowSingle: i === 0 });
+        if (hit && i > 0) { stats.bgmVariantHits += 1; }
+      }
       if (hit) {
         rec.bgmId = rec.bgmId || hit.id;
         if (!rec.name_cn && hit.name_cn) { rec.name_cn = String(hit.name_cn).trim(); }
@@ -769,7 +862,7 @@ function buildRecords(mediaList) {
 
 async function buildTrending(limit) {
   log('\n== 拉取「本季 / 热门」（AniList TRENDING_DESC, RELEASING）==');
-  const data = await anilist(TRENDING_QUERY, { perPage: limit }, `anilist-trending-${limit}`);
+  const data = await anilist(TRENDING_QUERY, { perPage: limit }, `anilist-${ANILIST_QUERY_VERSION}-trending-${limit}`);
   const media = data?.Page?.media || [];
   if (!media.length) {
     log('  × 热门列表拉取失败：保留旧 trending.json');
@@ -864,7 +957,9 @@ async function main() {
   let trendingMedia = [];
   if (ONLY !== 'anime') { trendingMedia = (await buildTrending(TRENDING_LIMIT)) || []; }
 
-  if (trendingMedia.length && entries !== curated.raw) {
+  // --only=trending 时 entries 就是旧库：新番同样并入，否则换季后热门匹配不到、会一直保留旧快照
+  const addedByTrending = [];
+  if (trendingMedia.length) {
     const known = new Set(entries.map((e) => e.anilistId));
     const merged = { added: 0, dropped: 0 };
     for (const m of trendingMedia) {
@@ -876,6 +971,7 @@ async function main() {
       const rec = mergeCurated(toRecord(m), curated);
       rec.trending = true;
       entries.push(rec);
+      addedByTrending.push(rec);
       known.add(m.id);
       merged.added += 1;
     }
@@ -892,6 +988,9 @@ async function main() {
       if (!old.year || old.year < MIN_YEAR || old.year > MAX_YEAR) { continue; }
       const rec = { ...old, keptFromPrevious: true };
       delete rec.trending;
+      // 没有重新拉到 tags，分类按 genres 用新规则重算，保证全库分类口径一致
+      rec.categories = categoriesOf(old.genres, []);
+      rec.emoji = EMOJI_BY_CATEGORY[rec.categories[0]] || '✨';
       entries.push(rec);
       known.add(old.anilistId);
       kept += 1;
@@ -900,14 +999,24 @@ async function main() {
   }
 
   if (ONLY !== 'trending') { await enrichWithBangumi(entries); }
+  else if (addedByTrending.length) { await enrichWithBangumi(addedByTrending); }
 
-  /* --- 稳定 id --- */
-  const slugSeen = new Map();
+  /* --- 稳定 id ---
+     旧库条目一律沿用原 id（用户的追番记录按 id 存在 localStorage 里）；
+     新条目只能用没被占用的 slug，撞名时改用 slug-anilistId，绝不抢旧条目的 id。 */
+  const oldIdByAni = new Map();
+  for (const old of curated.raw) {
+    if (old && old.anilistId && old.id) { oldIdByAni.set(old.anilistId, old.id); }
+  }
+  const takenIds = new Set(oldIdByAni.values());
+  const idStats = { kept: 0, created: 0 };
   for (const rec of entries) {
+    const oldId = oldIdByAni.get(rec.anilistId);
+    if (oldId) { rec.id = oldId; idStats.kept += 1; continue; }
     const base = rec.slug || 'ani';
-    const n = slugSeen.get(base) || 0;
-    slugSeen.set(base, n + 1);
-    rec.id = n === 0 ? base : `${base}-${rec.anilistId}`;
+    rec.id = takenIds.has(base) ? `${base}-${rec.anilistId}` : base;
+    takenIds.add(rec.id);
+    idStats.created += 1;
   }
 
   /* --- 统计 --- */
@@ -916,6 +1025,14 @@ async function main() {
   const withTrailer = entries.filter((e) => e.trailer).length;
   const withRelations = entries.filter((e) => (e.relations || []).length).length;
   const withBgm = entries.filter((e) => e.bgmId).length;
+  const withDuration = entries.filter((e) => e.duration).length;
+  const withStreaming = entries.filter((e) => (e.streaming || []).length).length;
+  const byCategory = {};
+  let noCategory = 0;
+  entries.forEach((e) => {
+    if (!(e.categories || []).length) { noCategory += 1; }
+    (e.categories || []).forEach((c) => { byCategory[c] = (byCategory[c] || 0) + 1; });
+  });
   const byFormat = entries.reduce((acc, e) => { acc[e.format] = (acc[e.format] || 0) + 1; return acc; }, {});
   const perYear = {};
   entries.forEach((e) => { if (e.year) { perYear[e.year] = (perYear[e.year] || 0) + 1; } });
@@ -927,7 +1044,9 @@ async function main() {
   log(`- 有中文名：${withCn}；有中文简介：${withCnSummary}；命中 Bangumi：${withBgm}`);
   log(`- 有官方 YouTube PV：${withTrailer}`);
   log(`- 有 relations：${withRelations}`);
-  log(`- 格式分布：${Object.entries(byFormat).map(([k, v]) => `${k} ${v}`).join(' / ')}`);
+  log(`- 有单集时长：${withDuration}；有正版平台链接（AniList STREAMING）：${withStreaming}`);
+  log(`- 分类分布：${Object.entries(byCategory).map(([k, v]) => `${k} ${v}`).join(' / ')}；无分类 ${noCategory}`);
+  log(`- id：沿用旧 id ${idStats.kept} 条，新建 ${idStats.created} 条；Bangumi 标题变体命中 ${stats.bgmVariantHits} 条`);  log(`- 格式分布：${Object.entries(byFormat).map(([k, v]) => `${k} ${v}`).join(' / ')}`);
   log(`- 年份范围：${years[0] || '—'} – ${years[years.length - 1] || '—'}；覆盖 ${years.length} 个年份`
     + (missingYears.length ? `；缺失：${missingYears.join(', ')}` : '；无缺失年份'));
   log(`- 每年条数：${years.map((y) => `${y}:${perYear[y]}`).join(' ')}`);
@@ -940,8 +1059,8 @@ async function main() {
     + `有中文名的条数 ${withCn}，有中文简介的条数 ${withCnSummary}`);
   log(`- 请求统计：网络 ${stats.net} 次 / 缓存命中 ${stats.cacheHits} 次 / 失败 ${stats.failures} 次`);
 
-  /* --- 写入（含健康检查） --- */
-  if (ONLY !== 'trending') {
+  /* --- 写入（含健康检查）：--only=trending 只在有新番并入时才重写主库 --- */
+  if (ONLY !== 'trending' || addedByTrending.length) {
     const threshold = Math.max(300, Math.floor(oldCount * 0.8));
     if (entries.length < threshold) {
       log(`\n⚠ 条数 ${entries.length} < ${threshold}（旧库 ${oldCount} 条的 80%），判定为抓取不完整：保留旧 JSON，不写入。`);
