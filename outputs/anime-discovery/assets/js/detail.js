@@ -248,6 +248,14 @@
     if (alts.length) { info.appendChild(el('p', 'faint', alts.join(' · '))); }
     info.appendChild(badgeRow());
 
+    // 分数单独突出，其余基础信息做成一排小标签
+    var facts = el('div', 'fact-row');
+    var score = el('div', 'score-pill');
+    score.appendChild(el('strong', null, '★ ' + D.scoreText(anime)));
+    if (anime.scoredBy) {
+      score.appendChild(el('span', null, 'AniList 上 ' + Number(anime.scoredBy).toLocaleString('en-US') + ' 人加入列表'));
+    }
+    facts.appendChild(score);
     var meta = el('div', 'meta-line');
     [
       D.yearText(anime),
@@ -255,15 +263,16 @@
       D.formatText(anime),
       D.episodesText(anime),
       anime.duration ? '单集 ' + anime.duration + ' 分钟' : '',
-      D.statusText(anime),
-      '★ ' + D.scoreText(anime) + (anime.scoredBy ? '（AniList 上 ' + Number(anime.scoredBy).toLocaleString('en-US') + ' 人加入列表）' : '')
+      D.statusText(anime)
     ].filter(Boolean).forEach(function (t) { meta.appendChild(el('span', null, t)); });
-    info.appendChild(meta);
+    facts.appendChild(meta);
+    info.appendChild(facts);
 
     info.appendChild(UI.tagNodes(anime.categories || [], 'tag-cat', 6));
     info.appendChild(UI.tagNodes(anime.genres || [], '', 10));
-    info.appendChild(synopsisBlock());
 
+    // 追番操作区（收藏 / 状态 / 进度）放在简介之前，不用滚过长简介才能操作
+    var track = el('div', 'track-panel');
     var actions = el('div', 'action-row');
     favButton = el('button', 'btn');
     favButton.type = 'button';
@@ -281,16 +290,21 @@
       onChange: function () { renderProgress(); }
     }));
     actions.appendChild(statusWrap);
-    info.appendChild(actions);
+    track.appendChild(actions);
 
-    info.appendChild(externalButtons());
-
-    info.appendChild(watchBox());
-
-    progressHost = el('div');
-    progressHost.style.marginTop = '14px';
-    info.appendChild(progressHost);
+    progressHost = el('div', 'track-progress');
+    track.appendChild(progressHost);
     renderProgress();
+    info.appendChild(track);
+
+    info.appendChild(synopsisBlock());
+
+    // 外部资料与「去哪看正片」收在同一块
+    var links = el('div', 'link-panel');
+    links.appendChild(el('h3', null, '外部资料'));
+    links.appendChild(externalButtons());
+    links.appendChild(watchBox());
+    info.appendChild(links);
 
     hero.appendChild(info);
     return hero;

@@ -165,8 +165,9 @@
   function renderLibraryMeta() {
     var cn = all.filter(function (a) { return a.name_cn; }).length;
     var pv = all.filter(function (a) { return a.trailer; }).length;
-    document.getElementById('libraryMeta').textContent =
-      '资料库 ' + all.length + ' 部 · ' + cn + ' 部有中文名 · ' + pv + ' 部有官方 PV · 数据来源 ' + (D.animeSource() || '—');
+    var meta = document.getElementById('libraryMeta');
+    meta.textContent = '资料库 ' + all.length + ' 部 · ' + cn + ' 部有中文名 · ' + pv + ' 部有官方 PV';
+    meta.title = '数据来源：' + (D.animeSource() || '—');   // 具体文件名放到悬停提示里，正文不刷屏
     var total = document.getElementById('statTotalInline');
     if (total) { total.textContent = String(all.length); }
   }

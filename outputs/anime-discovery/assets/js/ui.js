@@ -141,6 +141,9 @@
       if (typeof opts.onToggleFavorite === 'function') { opts.onToggleFavorite(anime, nowFav); }
     });
     coverWrap.appendChild(favBtn);
+    if (typeof anime.score === 'number') {
+      coverWrap.appendChild(el('span', 'cover-score', '★ ' + D.scoreText(anime)));
+    }
     card.appendChild(coverWrap);
 
     var body = el('div', 'poster-body');
@@ -153,8 +156,9 @@
     body.appendChild(el('div', 'poster-sub', sub || D.formatText(anime)));
     body.appendChild(tagNodes(anime.categories || [], 'tag-cat', 3));
 
+    // 分数已放到封面角标；这里放类型 + 集数
     var metaRow = el('div', 'poster-sub meta-row');
-    metaRow.appendChild(el('span', 'rating', '★ ' + D.scoreText(anime)));
+    metaRow.appendChild(el('span', null, D.formatText(anime)));
     metaRow.appendChild(el('span', null, D.episodesText(anime)));
     body.appendChild(metaRow);
 

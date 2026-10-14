@@ -24,10 +24,10 @@ cd C:\Users\User\Documents\Codex\2026-09-14\new-chat\outputs\anime-discovery
 node serve.js          # 零依赖，无需 npm install；换端口：node serve.js 9000
 ```
 
-访问 <http://localhost:8080/>，首页「数据来源」会显示 `data/anime.json`。
+访问 <http://localhost:8080/>，鼠标悬停在首页结果数旁的「资料库 N 部…」上可以看到数据来源（`data/anime-1.json` + …）。
 
 直接双击 `index.html` 也能用：`file://` 下浏览器不允许 `fetch()` 本地 JSON，
-站点会自动加载同内容的 `data/anime.js` / `data/trending.js` 兜底（数据来源会显示“本地兜底”）。
+站点会自动加载同内容的 `data/anime.js` / `data/trending.js` 兜底（悬停提示里的数据来源会显示“本地兜底”）。
 
 封面与 PV 都是远程资源，需要联网显示；断网或封面 404 时自动回退为「渐变 + 标题」的文字占位封面。
 
