@@ -14,7 +14,7 @@
   'use strict';
 
   /* 资源版本号：数据或脚本有更新就 +1，避免 GitHub Pages / 浏览器缓存混用新旧文件 */
-  var ASSET_VERSION = '20260919a';
+  var ASSET_VERSION = '20261014a';
 
   function withVersion(url) {
     return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + ASSET_VERSION;
@@ -363,6 +363,25 @@
     return links;
   }
 
+  /**
+   * 「去哪看」：在正版平台站内搜索本作的链接（站外搜索，不保证该平台有上架）。
+   * 中文平台用中文名，Crunchyroll 用罗马字 / 英文名；本站不提供任何播放。
+   */
+  function watchSearchLinks(a) {
+    if (!a) { return []; }
+    var zh = a.name_cn || a.name || a.name_romaji || a.name_en;
+    var latin = a.name_romaji || a.name_en || a.name;
+    var links = [];
+    if (zh) {
+      links.push({ label: '哔哩哔哩', url: 'https://search.bilibili.com/bangumi?keyword=' + encodeURIComponent(zh) });
+      links.push({ label: '巴哈姆特动画疯', url: 'https://ani.gamer.com.tw/search.php?keyword=' + encodeURIComponent(zh) });
+    }
+    if (latin) {
+      links.push({ label: 'Crunchyroll', url: 'https://www.crunchyroll.com/search?q=' + encodeURIComponent(latin) });
+    }
+    return links;
+  }
+
   /** 只有 AniList 明确标注为官方的 YouTube trailer 才会有值。 */
   function trailerEmbedUrl(a, autoplay) {
     if (!a || !a.trailer) { return null; }
@@ -470,12 +489,22 @@
   var SCROLL_KEY = 'anime-tracker:scroll';   // 首页滚动位置（sessionStorage，仅本标签页）
   var RETURN_KEY = 'anime-tracker:return';   // 详情页返回标记：回到首页时恢复滚动位置
 
+  /* 「只看」开关：有中文名 / 有官方 PV / 连载中（网址里写 ?cn=1&pv=1&airing=1） */
+  var FLAGS = [
+    { key: 'cn', label: '有中文名' },
+    { key: 'pv', label: '有官方 PV' },
+    { key: 'airing', label: '连载中' }
+  ];
+
   /** 首页筛选状态的默认值（分类用「全部」表示不筛选） */
   function defaultFilters() {
-    return { keyword: '', category: '全部', year: '', season: '', studio: '', format: '', sort: 'score' };
+    return {
+      keyword: '', category: '全部', year: '', season: '', studio: '', format: '', sort: 'score',
+      cn: false, pv: false, airing: false
+    };
   }
 
-  /** 筛选状态 → 网址查询串（只写非默认项，?q= &genre= &year= &season= &studio= &format= &sort=） */
+  /** 筛选状态 → 网址查询串（只写非默认项，?q= &genre= &year= &season= &studio= &format= &sort= &cn= &pv= &airing=） */
   function filtersToQuery(filters) {
     var f = filters || {};
     var p = new global.URLSearchParams();
@@ -486,6 +515,7 @@
     if (f.studio) { p.set('studio', f.studio); }
     if (f.format) { p.set('format', f.format); }
     if (f.sort && f.sort !== 'score') { p.set('sort', f.sort); }
+    FLAGS.forEach(function (flag) { if (f[flag.key]) { p.set(flag.key, '1'); } });
     return p.toString();
   }
 
@@ -500,6 +530,7 @@
     if (p.get('studio')) { f.studio = p.get('studio'); }
     if (p.get('format')) { f.format = p.get('format'); }
     if (p.get('sort')) { f.sort = p.get('sort'); }
+    FLAGS.forEach(function (flag) { f[flag.key] = p.get(flag.key) === '1'; });
     return f;
   }
 
@@ -516,6 +547,7 @@
       if (!saved || typeof saved !== 'object') { return null; }
       var f = defaultFilters();
       Object.keys(f).forEach(function (k) { if (saved[k] !== undefined && saved[k] !== null) { f[k] = saved[k]; } });
+      FLAGS.forEach(function (flag) { f[flag.key] = f[flag.key] === true; });
       return f;
     } catch (e) { return null; }
   }
@@ -550,6 +582,7 @@
     matchStudios: matchStudios,
     tagsOf: tagsOf,
     externalLinks: externalLinks,
+    watchSearchLinks: watchSearchLinks,
     trailerEmbedUrl: trailerEmbedUrl,
     sourceLabel: sourceLabel,
     searchText: searchText,
@@ -558,6 +591,7 @@
     studioList: studioList,
     resolveRelations: resolveRelations,
     recommend: recommend,
+    FLAGS: FLAGS,
     FILTER_KEY: FILTER_KEY,
     SCROLL_KEY: SCROLL_KEY,
     RETURN_KEY: RETURN_KEY,

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>番组发现 AnimeDiscovery · 动漫发现与追番记录</title>
 <meta name="description" content="纯信息展示的番剧发现站：3174 部番剧资料（2005–2026 年的 TV 动画 / 剧场版 / 网络动画）、本季热门、搜索与分类 / 年份 / 季度 / 制作公司筛选，收藏与追番进度只保存在你自己的浏览器里。资料来自 AniList 与 Bangumi，本站不提供任何在线播放。">
-<link rel="stylesheet" href="assets/css/style.css?v=20260919a">
+<link rel="stylesheet" href="assets/css/style.css?v=20261014a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🌸</text></svg>">
 </head>
 <body data-page="home">
@@ -46,10 +46,13 @@
   <section id="trendingSection" hidden>
     <div class="section-head">
       <div>
-        <h2>本季热门</h2>
+        <h2 id="trendingTitle">本季热门</h2>
         <p class="faint" id="trendingMeta">—</p>
       </div>
-      <button class="btn btn-sm btn-ghost" id="trendingAllBtn" type="button" hidden>查看本季全部</button>
+      <div class="section-actions">
+        <button class="btn btn-sm btn-primary" id="currentSeasonBtn" type="button" hidden>看本季</button>
+        <button class="btn btn-sm btn-ghost" id="trendingAllBtn" type="button" hidden>查看本季全部</button>
+      </div>
     </div>
     <div class="trend-strip" id="trendingStrip"></div>
   </section>
@@ -87,6 +90,10 @@
         <div class="field field-chips">
           <span class="field-label">分类</span>
           <div class="chips" id="categoryChips" role="group" aria-label="分类筛选"></div>
+        </div>
+        <div class="field field-chips">
+          <span class="field-label">只看</span>
+          <div class="chips" id="flagChips" role="group" aria-label="只看有中文名 / 有官方 PV / 连载中"></div>
         </div>
         <div class="field">
           <label class="field-label" for="yearSelect">年份</label>
@@ -152,9 +159,9 @@
   </div>
 </footer>
 
-<script src="assets/js/data.js?v=20260919a"></script>
-<script src="assets/js/store.js?v=20260919a"></script>
-<script src="assets/js/ui.js?v=20260919a"></script>
-<script src="assets/js/home.js?v=20260919a"></script>
+<script src="assets/js/data.js?v=20261014a"></script>
+<script src="assets/js/store.js?v=20261014a"></script>
+<script src="assets/js/ui.js?v=20261014a"></script>
+<script src="assets/js/home.js?v=20261014a"></script>
 </body>
 </html>

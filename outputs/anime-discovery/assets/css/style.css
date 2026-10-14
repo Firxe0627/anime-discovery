@@ -160,6 +160,7 @@ h3 { font-size: 1rem; }
 }
 
 .section-head p { margin: 0; }
+.section-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .card {
   background: linear-gradient(180deg, var(--panel), var(--bg-soft));
@@ -857,6 +858,12 @@ select {
 }
 
 .btn-ext:hover { border-color: var(--accent-3); background: rgba(53, 214, 200, 0.2); }
+
+/* 详情页「去哪看正片」：正版平台站内搜索 */
+.watch-box { margin-top: 16px; }
+.watch-box h3 { margin: 0; font-size: 0.95rem; }
+.watch-box .link-row { margin-top: 8px; }
+.watch-box .faint { margin: 8px 0 0; }
 
 .meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 

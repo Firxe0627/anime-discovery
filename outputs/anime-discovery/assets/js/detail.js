@@ -2,7 +2,7 @@
    detail.js —— 番剧详情页
      大封面、中文速览 + 完整简介（默认收起）、标签、分数、制作公司、
      集数进度、追番状态、数据来源徽章、官方 PV（点击才加载 iframe）、
-     同系列时间轴、相关推荐、外链按钮
+     同系列时间轴、相关推荐（加权，排除同系列）、外链按钮、「去哪看正片」站外搜索
    ========================================================================== */
 
 (function (global) {
@@ -188,6 +188,28 @@
     return wrap;
   }
 
+  /** 「去哪看」：到正版平台站内搜索本作（站外搜索，不保证有上架；本站不提供播放） */
+  function watchBox() {
+    var box = el('div', 'watch-box');
+    box.appendChild(el('h3', null, '去哪看正片'));
+    var row = el('div', 'link-row');
+    D.watchSearchLinks(anime).forEach(function (link) {
+      var a = el('a', 'btn btn-sm btn-ext', '在' + link.label + '搜索 ↗');
+      a.href = link.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = '在新标签页打开 ' + link.label + ' 的站内搜索（外部站点）';
+      row.appendChild(a);
+    });
+    var guide = el('a', 'btn btn-sm btn-ghost', '正版平台说明 →');
+    guide.href = 'about.html';
+    row.appendChild(guide);
+    box.appendChild(row);
+    box.appendChild(el('p', 'faint',
+      '以上是站外搜索，不保证该平台已上架本作，也可能有地区限制；本站不提供播放。'));
+    return box;
+  }
+
   function renderHero() {
     var hero = el('div', 'detail-hero');
 
@@ -211,7 +233,7 @@
       D.episodesText(anime),
       anime.duration ? '单集 ' + anime.duration + ' 分钟' : '',
       D.statusText(anime),
-      '★ ' + D.scoreText(anime) + (anime.scoredBy ? '（' + Number(anime.scoredBy).toLocaleString('en-US') + ' 人收藏/评分为参考）' : '')
+      '★ ' + D.scoreText(anime) + (anime.scoredBy ? '（AniList 上 ' + Number(anime.scoredBy).toLocaleString('en-US') + ' 人加入列表）' : '')
     ].filter(Boolean).forEach(function (t) { meta.appendChild(el('span', null, t)); });
     info.appendChild(meta);
 
@@ -240,11 +262,7 @@
 
     info.appendChild(externalButtons());
 
-    var watchRow = el('div', 'link-row');
-    var watchLink = el('a', 'btn btn-sm btn-ghost', '哪里能看正片 →');
-    watchLink.href = 'about.html';
-    watchRow.appendChild(watchLink);
-    info.appendChild(watchRow);
+    info.appendChild(watchBox());
 
     progressHost = el('div');
     progressHost.style.marginTop = '14px';
@@ -393,20 +411,14 @@
 
   /* ------------------------------------------------------------ 侧边栏 */
 
+  /** 相关推荐：复用「猜你也想看」的加权（分类 + 类型标签 + 制作公司），排除时间轴里已列出的同系列作品 */
   function relatedList() {
-    var cats = anime.categories || [];
-    return allList.filter(function (item) { return item.id !== anime.id; })
-      .map(function (item) {
-        var shared = (item.categories || []).filter(function (c) { return cats.indexOf(c) !== -1; }).length;
-        return { item: item, shared: shared };
-      })
-      .filter(function (row) { return row.shared > 0; })
-      .sort(function (a, b) {
-        if (b.shared !== a.shared) { return b.shared - a.shared; }
-        return (b.item.score || 0) - (a.item.score || 0);
-      })
-      .slice(0, 6)
-      .map(function (row) { return row.item; });
+    var sameSeries = {};
+    (anime.relations || []).forEach(function (r) { sameSeries[r.anilistId] = true; });
+    var limit = 6;
+    return D.recommend(allList, [anime], limit + Object.keys(sameSeries).length)
+      .filter(function (item) { return !sameSeries[item.anilistId]; })
+      .slice(0, limit);
   }
 
   function renderSidePanel() {

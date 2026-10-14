@@ -2,7 +2,8 @@
    home.js —— 首页
      一套筛选：搜索（按钮 / 回车 / 300ms 防抖）+ 分类 / 年份 / 季度 / 制作公司 / 类型 / 排序
      命中数量（分面计数，0 命中灰掉或隐藏）、条件标签可单条去掉、URL 可分享、
-     分批渲染 + 接近底部自动加载（按钮仅作后备）、随机一部、本季热门快照说明
+     「只看」开关（有中文名 / 有官方 PV / 连载中）、
+     分批渲染 + 接近底部自动加载（按钮仅作后备）、随机一部、本季热门快照说明（过季提示）
    ========================================================================== */
 
 (function (global) {
@@ -24,7 +25,7 @@
   var trending = { items: [] };
   var filtered = [];
   var rendered = 0;
-  var facets = { category: {}, year: {}, season: {}, format: {} };
+  var facets = { category: {}, year: {}, season: {}, format: {}, flag: {} };
   var studioCounts = null;          // 制作公司命中数量：懒计算，筛选变化后失效
   var hintTimer = null;
   var scrollSaveTimer = null;
@@ -38,6 +39,9 @@
     if (s.season && a.season !== s.season) { return false; }
     if (s.format && a.format !== s.format) { return false; }
     if (s.studio && (a.studios || []).indexOf(s.studio) === -1) { return false; }
+    if (s.cn && !a.name_cn) { return false; }
+    if (s.pv && !a.trailer) { return false; }
+    if (s.airing && a.status !== 'RELEASING') { return false; }
     if (s.keyword) {
       var hay = D.searchText(a);
       var words = String(s.keyword).toLowerCase().split(/\s+/).filter(Boolean);
@@ -100,11 +104,16 @@
   }
 
   function computeFacets() {
-    var next = { category: {}, year: {}, season: {}, format: {} };
+    var next = { category: {}, year: {}, season: {}, format: {}, flag: {} };
     D.CATEGORIES.forEach(function (name) { next.category[name] = countWith({ category: name }); });
     D.yearList(all).forEach(function (y) { next.year[String(y)] = countWith({ year: String(y) }); });
     SEASONS.forEach(function (s) { next.season[s] = countWith({ season: s }); });
     FORMATS.forEach(function (f) { next.format[f] = countWith({ format: f }); });
+    D.FLAGS.forEach(function (flag) {
+      var patch = {};
+      patch[flag.key] = true;
+      next.flag[flag.key] = countWith(patch);
+    });
     facets = next;
   }
 
@@ -140,6 +149,7 @@
     if (state.season) { parts.push(D.seasonZh(state.season)); }
     if (state.studio) { parts.push(D.studioLabel(state.studio)); }
     if (state.format) { parts.push(formatLabel(state.format)); }
+    D.FLAGS.forEach(function (flag) { if (state[flag.key]) { parts.push(flag.label); } });
     return parts;
   }
 
@@ -175,6 +185,9 @@
     if (state.season) { chips.push({ key: 'season', label: '季度：' + D.seasonZh(state.season) }); }
     if (state.studio) { chips.push({ key: 'studio', label: '公司：' + D.studioLabel(state.studio) }); }
     if (state.format) { chips.push({ key: 'format', label: '类型：' + formatLabel(state.format) }); }
+    D.FLAGS.forEach(function (flag) {
+      if (state[flag.key]) { chips.push({ key: flag.key, label: '只看' + flag.label }); }
+    });
     if (state.sort !== 'score') { chips.push({ key: 'sort', label: '排序：' + sortLabel(state.sort) }); }
 
     wrap.hidden = !chips.length;
@@ -199,6 +212,7 @@
   function removeChip(key) {
     if (key === 'sort') { state.sort = 'score'; }
     else if (key === 'category') { state.category = '全部'; }
+    else if (isFlag(key)) { state[key] = false; }
     else { state[key] = ''; }
     if (key === 'keyword') { syncSearchInput(); }
     refresh({ scroll: true });
@@ -248,6 +262,36 @@
       }
       chip.addEventListener('click', function () {
         state.category = name;
+        refresh({ scroll: true });
+      });
+      wrap.appendChild(chip);
+    });
+  }
+
+  function isFlag(key) {
+    return D.FLAGS.some(function (flag) { return flag.key === key; });
+  }
+
+  /** 「只看」开关：可叠加，选中时再点一次取消；旁边同样显示命中数量 */
+  function renderFlagChips() {
+    var wrap = document.getElementById('flagChips');
+    if (!wrap) { return; }
+    wrap.innerHTML = '';
+    D.FLAGS.forEach(function (flag) {
+      var count = facets.flag[flag.key] || 0;
+      var active = !!state[flag.key];
+      var chip = UI.el('button', 'chip chip-flag');
+      chip.type = 'button';
+      chip.appendChild(chipLabel(flag.label, count));
+      chip.setAttribute('aria-pressed', String(active));
+      chip.setAttribute('aria-label', '只看' + flag.label + '，当前条件下 ' + count + ' 部');
+      if (!count && !active) {
+        chip.disabled = true;
+        chip.className += ' is-empty';
+        chip.title = '当前筛选条件下没有作品';
+      }
+      chip.addEventListener('click', function () {
+        state[flag.key] = !active;
         refresh({ scroll: true });
       });
       wrap.appendChild(chip);
@@ -324,6 +368,7 @@
 
   function renderFiltersUI() {
     renderCategoryChips();
+    renderFlagChips();
     renderYearSelect();
     renderSeasonSelect();
     renderFormatSelect();
@@ -591,6 +636,7 @@
     document.getElementById('loadMoreBtn').addEventListener('click', loadMore);
     document.getElementById('randomBtn').addEventListener('click', randomAnime);
     document.getElementById('trendingAllBtn').addEventListener('click', showTrendingSeason);
+    document.getElementById('currentSeasonBtn').addEventListener('click', showCurrentSeason);
 
     var toggle = document.getElementById('filterToggleBtn');
     toggle.addEventListener('click', function () {
@@ -737,18 +783,48 @@
     return { year: Number(parts[0]), season: parts[1] };
   }
 
+  /** 今天所在的番季：按日本放送惯例，1–3 月冬季、4–6 月春季、7–9 月夏季、10–12 月秋季 */
+  function currentSeason() {
+    var d = new Date();
+    return { year: d.getFullYear(), season: SEASONS[Math.floor(d.getMonth() / 3)] };
+  }
+
+  function seasonLabel(t) { return t.year + ' ' + D.seasonZh(t.season); }
+
+  function sameSeason(a, b) {
+    return !!(a && b) && Number(a.year) === Number(b.year) && a.season === b.season;
+  }
+
+  function seasonCount(t) {
+    if (!t) { return 0; }
+    return all.filter(function (a) {
+      return String(a.year) === String(t.year) && a.season === t.season;
+    }).length;
+  }
+
   function renderTrending() {
     var section = document.getElementById('trendingSection');
     var strip = document.getElementById('trendingStrip');
     var items = (trending && trending.items) || [];
     var btn = document.getElementById('trendingAllBtn');
-    if (!items.length) { section.hidden = true; btn.hidden = true; return; }
+    var nowBtn = document.getElementById('currentSeasonBtn');
+    if (!items.length) { section.hidden = true; btn.hidden = true; nowBtn.hidden = true; return; }
     section.hidden = false;
     strip.innerHTML = '';
     items.forEach(function (item) { strip.appendChild(UI.trendingCard(item)); });
 
+    var target = trendingSeason();
+    var now = currentSeason();
+    var stale = !!target && !sameSeason(target, now);   // 快照季度 ≠ 今天所在季度：已过季
+
+    document.getElementById('trendingTitle').textContent = stale
+      ? '热门快照 · ' + seasonLabel(target) + '（已过季）'
+      : '本季热门';
+
     // 小字说明：这是抓取快照；有生成时间就显示，没有就沿用现有季节文案（不编造日期）
-    var notes = ['这是上次抓取的快照，不会随新一季自动更换'];
+    var notes = [stale
+      ? '这是 ' + seasonLabel(target) + ' 的抓取快照，现在已是 ' + seasonLabel(now) + '，重新跑抓取脚本后才会更新'
+      : '这是上次抓取的快照，不会随新一季自动更换'];
     var stamp = formatStamp(trending.generatedAt);
     if (stamp) { notes.push('生成时间 ' + stamp + '（本地时间）'); }
     else if (trending.season) { notes.push(trending.season); }
@@ -756,19 +832,26 @@
     notes.push('共 ' + items.length + ' 部，全部可在站内打开详情');
     document.getElementById('trendingMeta').textContent = notes.join(' · ');
 
-    var target = trendingSeason();
-    var inLibrary = target ? all.filter(function (a) {
-      return String(a.year) === String(target.year) && a.season === target.season;
-    }).length : 0;
+    var inLibrary = seasonCount(target);
     btn.hidden = !(target && inLibrary > 0);      // 该季在库中没有作品就不显示
     if (target && inLibrary) {
-      btn.textContent = '查看本季全部（' + inLibrary + ' 部）';
+      btn.textContent = (stale ? '查看 ' + seasonLabel(target) + '全部' : '查看本季全部') + '（' + inLibrary + ' 部）';
       btn.title = '按 ' + target.year + ' 年' + D.seasonZh(target.season) + ' 筛选资料库';
+    }
+
+    // 已过季时多给一个入口：直接看资料库里「今天所在季度」的作品（库里没有就不显示）
+    var nowCount = stale ? seasonCount(now) : 0;
+    nowBtn.hidden = !nowCount;
+    if (nowCount) {
+      nowBtn.textContent = '看 ' + seasonLabel(now) + '（' + nowCount + ' 部）';
+      nowBtn.title = '按 ' + now.year + ' 年' + D.seasonZh(now.season) + ' 筛选资料库（只含资料库已收录的作品）';
     }
   }
 
-  function showTrendingSeason() {
-    var target = trendingSeason();
+  function showTrendingSeason() { applySeason(trendingSeason()); }
+  function showCurrentSeason() { applySeason(currentSeason()); }
+
+  function applySeason(target) {
     if (!target) { return; }
     var keepSort = state.sort;
     state = D.defaultFilters();
