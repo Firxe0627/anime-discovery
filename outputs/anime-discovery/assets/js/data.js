@@ -14,7 +14,7 @@
   'use strict';
 
   /* 资源版本号：数据或脚本有更新就 +1，避免 GitHub Pages / 浏览器缓存混用新旧文件 */
-  var ASSET_VERSION = '20261014c';
+  var ASSET_VERSION = '20261014d';
 
   function withVersion(url) {
     return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + ASSET_VERSION;

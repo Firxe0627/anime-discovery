@@ -478,6 +478,7 @@ select option { background: #141834; color: var(--text); }
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   line-height: 1.5;   /* .cover-wrap 设了 line-height: 0，这里要显式恢复，否则标签被压扁 */
+  white-space: nowrap;
   backdrop-filter: blur(6px);
 }
 
@@ -515,6 +516,7 @@ select option { background: #141834; color: var(--text); }
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
+  white-space: nowrap;
   backdrop-filter: blur(6px);
 }
 
